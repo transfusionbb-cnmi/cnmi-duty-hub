@@ -1,4 +1,4 @@
-/* CNMI Duty Hub V28 - OT wording + cache busting */
+/* CNMI Duty Hub V29 - no consecutive roster duties */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -1935,7 +1935,10 @@ function handleDrop(e) {
   const target = findDraftSlot(slot.dataset.dropSlot);
   if (!target) return;
   if (target.is_locked) return showToast('ช่องนี้ล็อกอยู่');
-  if (!canStaffWorkSlot(staffId, target)) return showToast('คนนี้ติดลา/ไม่รับเวร หรือประเภทไม่ตรงกับเวร');
+  if (!canStaffWorkSlot(staffId, target)) {
+    if (hasAdjacentDuty(staffId, target.duty_date, getAssignmentsForMonth(state.monthKey), target)) return showToast('คนนี้มีเวรติดกับวันก่อน/วันถัดไปแล้ว กรุณาเลือกคนอื่น');
+    return showToast('คนนี้ติดลา/ไม่รับเวร หรือประเภทไม่ตรงกับเวร');
+  }
 
   const scrollSnapshot = captureRosterScroll(slot);
   updateDraftSlot(slot.dataset.dropSlot, { staff_id: staffId });
@@ -1975,16 +1978,18 @@ function autoAssignRoster() {
   if (!state.rosterDraft || state.rosterDraft.monthKey !== state.monthKey) state.rosterDraft = { monthKey: state.monthKey, assignments: generateEmptyAssignments(state.monthKey) };
   const assignments = state.rosterDraft.assignments;
   const counts = calcFairness(assignments.filter(x => x.staff_id));
+  let blockedByConsecutive = 0;
+  let unfilled = 0;
   assignments.forEach(slot => {
     if (slot.is_locked || slot.staff_id) return;
     const wk = weekKeyOf(slot.duty_date);
-    const candidates = state.staff.filter(s => isRosterEnabled(s) && canStaffWorkSlot(s.id, slot));
+    const baseCandidates = state.staff.filter(s => isRosterEnabled(s) && supportsRequiredRole(s, slot.required_role) && !state.leaves.some(l => l.staff_id === s.id && overlapsDate(l, slot.duty_date)) && !hasSameDayDuty(s.id, slot.duty_date, assignments, slot));
+    const candidates = baseCandidates.filter(s => !hasAdjacentDuty(s.id, slot.duty_date, assignments, slot));
+    if (!candidates.length && baseCandidates.length) blockedByConsecutive++;
     candidates.sort((a,b) => {
       const ca = counts[a.id] || { total:0, weekend:0, hours:0, weekCounts:{} };
       const cb = counts[b.id] || { total:0, weekend:0, hours:0, weekCounts:{} };
-      const adjA = adjacentDutyPenalty(a.id, slot.duty_date, assignments);
-      const adjB = adjacentDutyPenalty(b.id, slot.duty_date, assignments);
-      return ((ca.pay || 0) - (cb.pay || 0)) || (ca.hours - cb.hours) || ((ca.weekCounts[wk]||0) - (cb.weekCounts[wk]||0)) || (ca.weekend - cb.weekend) || (adjA - adjB) || (ca.total - cb.total);
+      return ((ca.pay || 0) - (cb.pay || 0)) || (ca.hours - cb.hours) || ((ca.weekCounts[wk]||0) - (cb.weekCounts[wk]||0)) || (ca.weekend - cb.weekend) || (ca.total - cb.total);
     });
     if (candidates[0]) {
       slot.staff_id = candidates[0].id;
@@ -1997,25 +2002,44 @@ function autoAssignRoster() {
       c.pay = (c.pay || 0) + dm.pay;
       const wk2 = weekKeyOf(slot.duty_date); c.weekCounts[wk2] = (c.weekCounts[wk2] || 0) + 1;
       if (isWeekend(slot.duty_date) || isHolidayDate(slot.duty_date)) c.weekend++; else c.weekday++;
+    } else {
+      unfilled++;
     }
   });
-  showToast('Auto Assign แล้ว ตรวจทานก่อนประกาศอีกทีนะ');
+  if (unfilled) showToast(`Auto Assign แล้ว แต่เหลือ ${unfilled} ช่องที่ยังจัดไม่ได้ เพราะติดเงื่อนไขลา/ประเภทเวร/ห้ามเวรติดกัน`);
+  else showToast('Auto Assign แล้ว โดยกันไม่ให้ใครอยู่เวรติดกัน ตรวจทานก่อนประกาศอีกทีนะ');
 }
-function canStaffWorkSlot(staffId, slot) {
+function hasSameDayDuty(staffId, date, assignments = [], excludeSlot = null) {
+  const ex = excludeSlot ? (excludeSlot.id || excludeSlot._temp_id) : null;
+  const inDraft = (assignments || []).some(a => a.staff_id === staffId && a.duty_date === date && (!ex || (a.id || a._temp_id) !== ex));
+  const inSaved = state.rosterAssignments.some(a => a.staff_id === staffId && a.duty_date === date && (!ex || (a.id || a._temp_id) !== ex));
+  return inDraft || inSaved;
+}
+function hasAdjacentDuty(staffId, date, assignments = [], excludeSlot = null) {
+  const d = parseDate(date);
+  const prev = new Date(d); prev.setDate(d.getDate() - 1);
+  const next = new Date(d); next.setDate(d.getDate() + 1);
+  const prevStr = toDateInput(prev), nextStr = toDateInput(next);
+  return hasDutyOnDate(staffId, prevStr, assignments, excludeSlot) || hasDutyOnDate(staffId, nextStr, assignments, excludeSlot);
+}
+function hasDutyOnDate(staffId, date, assignments = [], excludeSlot = null) {
+  const ex = excludeSlot ? (excludeSlot.id || excludeSlot._temp_id) : null;
+  const inDraft = (assignments || []).some(a => a.staff_id === staffId && a.duty_date === date && (!ex || (a.id || a._temp_id) !== ex));
+  const inSaved = state.rosterAssignments.some(a => a.staff_id === staffId && a.duty_date === date && (!ex || (a.id || a._temp_id) !== ex));
+  return inDraft || inSaved;
+}
+function canStaffWorkSlot(staffId, slot, assignments = getAssignmentsForMonth(state.monthKey)) {
   const s = state.staff.find(x => x.id === staffId);
   if (!isRosterEnabled(s)) return false;
   if (!supportsRequiredRole(s, slot.required_role)) return false;
   const blocked = state.leaves.some(l => l.staff_id === staffId && overlapsDate(l, slot.duty_date));
   if (blocked) return false;
-  const already = getAssignmentsForMonth(state.monthKey).some(a => a.duty_date === slot.duty_date && a.staff_id === staffId && (a.id || a._temp_id) !== (slot.id || slot._temp_id));
-  return !already;
+  if (hasSameDayDuty(staffId, slot.duty_date, assignments, slot)) return false;
+  if (hasAdjacentDuty(staffId, slot.duty_date, assignments, slot)) return false;
+  return true;
 }
 function adjacentDutyPenalty(staffId, date, assignments) {
-  const d = parseDate(date);
-  const prev = new Date(d); prev.setDate(d.getDate()-1);
-  const next = new Date(d); next.setDate(d.getDate()+1);
-  const prevStr = toDateInput(prev), nextStr = toDateInput(next);
-  return assignments.some(a => a.staff_id === staffId && (a.duty_date === prevStr || a.duty_date === nextStr)) ? 1 : 0;
+  return hasAdjacentDuty(staffId, date, assignments) ? 1 : 0;
 }
 function isWeekend(date) { const d = parseDate(date).getDay(); return d === 0 || d === 6; }
 async function saveRosterDraft(status='draft') {
