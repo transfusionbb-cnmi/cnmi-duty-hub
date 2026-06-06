@@ -1,17 +1,22 @@
-/* CNMI Duty Hub V11 - Daily Position Eligibility + Supabase */
+/* CNMI Duty Hub V12 - Navigation groups + colors + eligibility UX + holiday rules */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
-  { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้' },
-  { id: 'calendar', icon: '📅', title: 'Calendar กลาง', subtitle: 'รวมลา อบรม ประชุม ออกหน่วย วันหยุด และเวร' },
-  { id: 'leave', icon: '🌿', title: 'แจ้งลา / ไม่รับเวร', subtitle: 'บันทึก แก้ไข ยกเลิก และแนบไฟล์' },
-  { id: 'activities', icon: '🗂️', title: 'กิจกรรมหน่วยงาน', subtitle: 'CQI HA ออกหน่วย ประชุม อบรม และกิจกรรมอื่น' },
-  { id: 'hr', icon: '🧾', title: 'ตรวจสอบ HR', subtitle: 'Admin ตรวจว่าแจ้งใน HR แล้วหรือยัง' },
-  { id: 'scheduler', icon: '🧩', title: 'จัดตารางเวร', subtitle: 'Auto Assign, Drag & Drop, Lock, Publish' },
-  { id: 'schedule', icon: '📋', title: 'ตารางเวรประจำเดือน', subtitle: 'ดูรายเดือน Export Excel / PDF / Print' },
-  { id: 'positions', icon: '🧪', title: 'ตารางตำแหน่งรายวัน', subtitle: 'จัดตำแหน่งรายวัน / อินชาร์จประจำเดือน / เก็บ Log' },
-  { id: 'ot', icon: '⏱️', title: 'OT & Attendance', subtitle: 'Check-In, ขอ OT, อนุมัติ, สรุป' },
-  { id: 'audit', icon: '🕵️', title: 'Audit Log ล่าสุด', subtitle: 'ประวัติการใช้งานแบบอ่านง่าย' },
-  { id: 'users', icon: '👥', title: 'ผู้ใช้งานและสิทธิ์', subtitle: 'เพิ่ม/แก้ไขเจ้าหน้าที่ เฉพาะ Admin' }
+  { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้', group: 'staff' },
+  { id: 'calendar', icon: '📅', title: 'Calendar กลาง', subtitle: 'รวมลา อบรม ประชุม ออกหน่วย วันหยุด และเวร', group: 'staff' },
+  { id: 'leave', icon: '🌿', title: 'แจ้งลา / ไม่รับเวร', subtitle: 'บันทึก แก้ไข ยกเลิก และแนบไฟล์', group: 'staff' },
+  { id: 'activities', icon: '🗂️', title: 'กิจกรรมหน่วยงาน', subtitle: 'CQI HA ออกหน่วย ประชุม อบรม และกิจกรรมอื่น', group: 'staff' },
+  { id: 'schedule', icon: '📋', title: 'ตารางเวรประจำเดือน', subtitle: 'ดูรายเดือน Export Excel / PDF / Print', group: 'staff' },
+  { id: 'positions', icon: '🧪', title: 'ตารางตำแหน่งรายวัน', subtitle: 'จัดตำแหน่งรายวัน / อินชาร์จประจำเดือน / เก็บ Log', group: 'staff' },
+  { id: 'ot', icon: '⏱️', title: 'OT & Attendance', subtitle: 'Check-In, ขอ OT, อนุมัติ, สรุป', group: 'staff' },
+  { id: 'audit', icon: '🕵️', title: 'Audit Log ล่าสุด', subtitle: 'ประวัติการใช้งานแบบอ่านง่าย กรองรายวันได้', group: 'staff' },
+  { id: 'hr', icon: '🧾', title: 'ตรวจสอบ HR', subtitle: 'Admin ตรวจว่าแจ้งใน HR แล้วหรือยัง', group: 'admin' },
+  { id: 'scheduler', icon: '🧩', title: 'จัดตารางเวร', subtitle: 'Auto Assign, Drag & Drop, Lock, Publish', group: 'admin' },
+  { id: 'users', icon: '👥', title: 'ผู้ใช้งานและสิทธิ์', subtitle: 'เพิ่ม/แก้ไขเจ้าหน้าที่ เฉพาะ Admin', group: 'admin' },
+  { id: 'eligibility', icon: '✅', title: 'สิทธิ์ตำแหน่งรายวัน', subtitle: 'กำหนดว่าแต่ละคนขึ้นตำแหน่งไหนได้', group: 'admin' }
+];
+const NAV_GROUPS = [
+  { id: 'staff', title: 'เมนู Staff', hint: 'ใช้ประจำวัน', adminOnly: false },
+  { id: 'admin', title: 'เมนู Admin', hint: 'ตั้งค่าและจัดการระบบ', adminOnly: true }
 ];
 
 const LEAVE_TYPES = ['ลาพักร้อน','ลากิจ','ลาป่วย','ลาคลอด','ไม่รับเวร','อื่นๆ'];
@@ -28,6 +33,11 @@ const DUTY_SLOT_RULES = {
     { code: 'ชบด3', role: 'เคิก' },
     { code: 'ช4A', role: 'MT_OR_TANG' },
     { code: 'ช4B', role: 'MT_OR_TANG' }
+  ],
+  holidayWeekday: [
+    { code: 'ชบด1', role: 'MT' },
+    { code: 'ชบด2', role: 'MT' },
+    { code: 'ชบด3', role: 'MT' }
   ],
   saturday: [
     { code: 'ชบด1', role: 'MT' },
@@ -82,6 +92,27 @@ const ALL_POSITION_TEMPLATES = (() => {
   return Array.from(map.values());
 })();
 const POSITION_TRAINING_STATUSES = ['ใช้งานปกติ','น้องใหม่ / ยังไม่จัดอัตโนมัติ','จัดได้บางตำแหน่ง','งดจัดชั่วคราว'];
+const DEFAULT_STAFF_COLORS = {
+  'มัส': '#d7f66f',
+  'มายด์': '#a9ddff',
+  'มาย': '#a9ddff',
+  'หนิง': '#d9bdff',
+  'หญิง': '#ffc89f',
+  'พลอย': '#9fe36a',
+  'อัน': '#ff5c9a',
+  'ต้า': '#13b5dc',
+  'ปอ': '#ff777d',
+  'กิ๊ฟ': '#ffe89a',
+  'กิ๊บ': '#ffe89a',
+  'ไนซ์': '#ffbd6b',
+  'บอล': '#75b8c8',
+  'แตง': '#f7b8f2',
+  'แก๊ส': '#b897ea',
+  'เฟื่อง': '#7898e8',
+  'แพ็ต': '#cce8a8',
+  'อาร์ม': '#b8d3ff',
+  'test': '#e8edf3'
+};
 let sb = null;
 let state = {
   session: null,
@@ -100,6 +131,8 @@ let state = {
   holidays: [],
   incharges: [],
   positionEligibility: [],
+  eligibilityStaffId: null,
+  auditDate: todayStr(),
   calendarDate: new Date(),
   calendarView: 'month',
   monthKey: monthKey(new Date()),
@@ -123,6 +156,28 @@ function currentStaffId() { return state.profile?.id || null; }
 function isAdmin() { return state.profile?.role === 'admin'; }
 function staffName(id) { const s = state.staff.find(x => x.id === id); return s ? `${s.nickname || s.full_name || ''}${s.nickname && s.full_name ? ` (${s.full_name})` : ''}` : '-'; }
 function staffNick(id) { const s = state.staff.find(x => x.id === id); return s?.nickname || s?.full_name || '-'; }
+function defaultStaffColor(nick) { return DEFAULT_STAFF_COLORS[String(nick || '').trim()] || '#e8f3ff'; }
+function staffColor(staffOrId) {
+  const s = typeof staffOrId === 'object' ? staffOrId : state.staff.find(x => x.id === staffOrId);
+  return s?.staff_color || defaultStaffColor(s?.nickname || s?.full_name);
+}
+function textColorFor(bg) {
+  const hex = String(bg || '#e8f3ff').replace('#','');
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#203245';
+  const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+  return ((r*299 + g*587 + b*114) / 1000) > 145 ? '#203245' : '#ffffff';
+}
+function staffPill(staffId, opts={}) {
+  const s = typeof staffId === 'object' ? staffId : state.staff.find(x => x.id === staffId);
+  if (!s) return '<span class="muted">-</span>';
+  const bg = staffColor(s);
+  const fg = textColorFor(bg);
+  const label = escapeHtml(s.nickname || s.full_name || '-');
+  const cls = opts.button ? 'staff-color-pill staff-pill-btn' : 'staff-color-pill';
+  const attrs = opts.attrs || '';
+  const title = escapeHtml(s.full_name || s.nickname || '');
+  return `<${opts.button ? 'button' : 'span'} class="${cls}" style="--staff-bg:${bg};--staff-fg:${fg}" title="${title}" ${attrs}>${label}</${opts.button ? 'button' : 'span'}>`;
+}
 function staffType(id) { return state.staff.find(x => x.id === id)?.staff_type || ''; }
 function getMonthRange(key) { const [y,m] = key.split('-').map(Number); return { start: `${y}-${pad(m)}-01`, end: toDateInput(new Date(y, m, 0)), y, m }; }
 function dateInRange(date, start, end) { return date >= start && date <= end; }
@@ -437,11 +492,15 @@ async function loadAllData() {
 }
 
 function renderNav() {
-  $('mainNav').innerHTML = NAV_ITEMS.map(item => `
-    <button class="nav-btn ${state.page === item.id ? 'active' : ''}" data-page="${item.id}">
-      <span class="nav-emoji">${item.icon}</span><span>${item.title}</span>
-    </button>`).join('');
-  $('userMini').innerHTML = `<b>${escapeHtml(state.profile.nickname || state.profile.full_name || state.profile.email)}</b><br><span>${escapeHtml(state.profile.position || state.profile.role)} • ${escapeHtml(state.profile.role)}</span>`;
+  $('mainNav').innerHTML = NAV_GROUPS.filter(g => !g.adminOnly || isAdmin()).map(group => {
+    const items = NAV_ITEMS.filter(item => item.group === group.id && (!group.adminOnly || isAdmin()));
+    if (!items.length) return '';
+    return `<div class="nav-section"><div class="nav-section-title"><span>${escapeHtml(group.title)}</span><small>${escapeHtml(group.hint)}</small></div>${items.map(item => `
+      <button class="nav-btn ${state.page === item.id ? 'active' : ''}" data-page="${item.id}">
+        <span class="nav-emoji">${item.icon}</span><span>${item.title}</span>
+      </button>`).join('')}</div>`;
+  }).join('');
+  $('userMini').innerHTML = `<div class="mini-profile">${staffPill(state.profile)}<br><span>${escapeHtml(state.profile.position || state.profile.role)} • ${escapeHtml(state.profile.role)}</span></div>`;
 }
 function renderPage() {
   const item = NAV_ITEMS.find(x => x.id === state.page) || NAV_ITEMS[0];
@@ -460,7 +519,8 @@ function renderPage() {
     positions: renderPositionsPage,
     ot: renderOtPage,
     audit: renderAuditPage,
-    users: renderUsersPage
+    users: renderUsersPage,
+    eligibility: renderEligibilityPage
   };
   content.innerHTML = (pages[state.page] || renderDashboard)();
 }
@@ -571,7 +631,7 @@ function renderDashboard() {
       <div class="card">
         <div class="section-title"><h3>เวรวันนี้</h3><span>${formatThaiDate(d)}</span></div>
         ${todayDuties.length ? `<div class="table-wrap"><table><thead><tr><th>เวร</th><th>ผู้รับผิดชอบ</th><th>ประเภท</th></tr></thead><tbody>
-          ${todayDuties.map(r => `<tr><td>${escapeHtml(DUTY_LABEL[r.duty_code] || r.duty_code)}</td><td><b>${escapeHtml(staffNick(r.staff_id))}</b></td><td>${badge(r.required_role || '-', 'black')}</td></tr>`).join('')}
+          ${todayDuties.map(r => `<tr><td>${escapeHtml(DUTY_LABEL[r.duty_code] || r.duty_code)}</td><td>${staffPill(r.staff_id)}</td><td>${badge(r.required_role || '-', 'black')}</td></tr>`).join('')}
         </tbody></table></div>` : empty('ยังไม่มีตารางเวรวันนี้')}
       </div>
       <div class="card">
@@ -802,7 +862,7 @@ function renderSchedulerPage() {
         <h3>รายชื่อเจ้าหน้าที่</h3>
         <p class="hint">ลากชื่อไปวางในช่องเวรได้เลย / คนที่ปิดจัดเวรจะไม่ถูก Auto Assign</p>
         <div class="staff-pool">
-          ${state.staff.filter(s => isRosterEnabled(s)).map(s => `<div class="staff-chip" draggable="true" data-drag-staff="${s.id}"><span>${escapeHtml(s.nickname || s.full_name)}</span><span>${badge(s.staff_type || '-', s.staff_type==='MT'?'blue':'orange')}</span></div>`).join('')}
+          ${state.staff.filter(s => isRosterEnabled(s)).map(s => `<div class="staff-chip" style="--staff-bg:${staffColor(s)};--staff-fg:${textColorFor(staffColor(s))}" draggable="true" data-drag-staff="${s.id}"><span>${escapeHtml(s.nickname || s.full_name)}</span><span>${badge(s.staff_type || '-', s.staff_type==='MT'?'blue':'orange')}</span></div>`).join('')}
         </div>
       </div>
       <div class="card">
@@ -815,7 +875,7 @@ function renderSchedulerPage() {
 function getAssignmentsForMonth(key) {
   if (state.rosterDraft?.monthKey === key) return state.rosterDraft.assignments;
   const { start, end } = getMonthRange(key);
-  return state.rosterAssignments.filter(x => x.duty_date >= start && x.duty_date <= end);
+  return state.rosterAssignments.filter(x => x.duty_date >= start && x.duty_date <= end && allowedDutyCodesForDate(x.duty_date).includes(x.duty_code));
 }
 function generateEmptyAssignments(key) {
   const { y, m } = getMonthRange(key);
@@ -830,11 +890,12 @@ function generateEmptyAssignments(key) {
 }
 function dutyRuleForDate(date) {
   const dow = parseDate(date).getDay();
-  if (isHolidayDate(date)) return DUTY_SLOT_RULES.sunday;
+  if (isHolidayDate(date) && dow !== 0 && dow !== 6) return DUTY_SLOT_RULES.holidayWeekday;
   if (dow === 0) return DUTY_SLOT_RULES.sunday;
   if (dow === 6) return DUTY_SLOT_RULES.saturday;
   return DUTY_SLOT_RULES.weekday;
 }
+function allowedDutyCodesForDate(date) { return dutyRuleForDate(date).map(x => x.code); }
 function renderRosterGrid(assignments) {
   if (!assignments.length) return empty('กด “สร้างร่าง” เพื่อเริ่มจัดเวร');
   const { y, m } = getMonthRange(state.monthKey);
@@ -843,12 +904,13 @@ function renderRosterGrid(assignments) {
     ${Array.from({length:last}, (_,i)=>i+1).map(day => {
       const date = `${y}-${pad(m)}-${pad(day)}`;
       const dow = parseDate(date).toLocaleDateString('th-TH', { weekday:'short' });
-      return `<tr><td><b>${day}</b><br><span class="muted">${dow}</span></td>${DUTY_COLUMNS.map(code => {
+      return `<tr><td><b>${day}</b><br><span class="muted">${dow}</span>${isHolidayDate(date) ? `<br><span class="badge yellow">${escapeHtml(holidayName(date))}</span>` : ''}</td>${DUTY_COLUMNS.map(code => {
+        if (!allowedDutyCodesForDate(date).includes(code)) return '<td class="muted">-</td>';
         const slot = assignments.find(a => a.duty_date === date && a.duty_code === code);
         if (!slot) return '<td class="muted">-</td>';
         const id = slot.id || slot._temp_id;
         return `<td><div class="roster-slot ${slot.is_locked?'locked':''}" data-drop-slot="${id}">
-          <div class="assigned-name">${slot.staff_id ? escapeHtml(staffNick(slot.staff_id)) : 'ยังไม่จัด'}</div>
+          <div class="assigned-name">${slot.staff_id ? staffPill(slot.staff_id) : 'ยังไม่จัด'}</div>
           <div class="slot-meta">${escapeHtml(slot.required_role)} ${slot.is_locked?'• locked':''}</div>
           <div class="actions"><button class="tiny-btn" data-clear-slot="${id}">ล้าง</button><button class="tiny-btn" data-toggle-lock-slot="${id}">${slot.is_locked?'ปลดล็อก':'ล็อก'}</button></div>
         </div></td>`;
@@ -903,9 +965,10 @@ function renderReadOnlySchedule(assignments) {
   return `<div class="table-wrap"><table id="scheduleTable"><thead><tr><th>วันที่</th>${DUTY_COLUMNS.map(c => `<th>${escapeHtml(DUTY_LABEL[c] || c)}</th>`).join('')}</tr></thead><tbody>
     ${Array.from({length:last}, (_,i)=>i+1).map(day => {
       const date = `${y}-${pad(m)}-${pad(day)}`;
-      return `<tr><td>${day}<br><span class="muted">${parseDate(date).toLocaleDateString('th-TH', { weekday:'short' })}</span></td>${DUTY_COLUMNS.map(code => {
+      return `<tr><td>${day}<br><span class="muted">${parseDate(date).toLocaleDateString('th-TH', { weekday:'short' })}</span>${isHolidayDate(date) ? `<br><span class="badge yellow">${escapeHtml(holidayName(date))}</span>` : ''}</td>${DUTY_COLUMNS.map(code => {
+        if (!allowedDutyCodesForDate(date).includes(code)) return '<td class="muted">-</td>';
         const slot = assignments.find(a => a.duty_date === date && a.duty_code === code);
-        return `<td>${slot?.staff_id ? `<button class="tiny-btn" data-staff-stat="${slot.staff_id}">${escapeHtml(staffNick(slot.staff_id))}</button>` : '-'}</td>`;
+        return `<td>${slot?.staff_id ? staffPill(slot.staff_id, { button:true, attrs:`data-staff-stat="${slot.staff_id}" type="button"` }) : '-'}</td>`;
       }).join('')}</tr>`;
     }).join('')}
   </tbody></table></div>`;
@@ -913,7 +976,7 @@ function renderReadOnlySchedule(assignments) {
 function showStaffStats(staffId) {
   const assignments = getAssignmentsForMonth(state.monthKey).filter(x => x.staff_id === staffId);
   const s = calcFairness(assignments)[staffId] || {};
-  showModal(`<h2>${escapeHtml(staffName(staffId))}</h2><div class="grid grid-2">${statCard('เวรรวม', s.total||0)}${statCard('วันหยุด', s.weekend||0)}${statCard('จันทร์', s.mon||0)}${statCard('ศุกร์', s.fri||0)}</div>`);
+  showModal(`<h2>${staffPill(staffId)}</h2><div class="grid grid-2">${statCard('เวรรวม', s.total||0)}${statCard('วันหยุด', s.weekend||0)}${statCard('จันทร์', s.mon||0)}${statCard('ศุกร์', s.fri||0)}</div>`);
 }
 
 function renderPositionsPage() {
@@ -932,10 +995,10 @@ function renderPositionsPage() {
       ${isAdmin() ? `<label>อินชาร์จประจำเดือน <select id="inchargeSelect"><option value="">ไม่ระบุ</option>${staffOptions(incharge)}</select></label><button class="soft-btn" data-save-incharge>บันทึกอินชาร์จ</button>` : `<span>${badge('อินชาร์จ: ' + staffNick(incharge), 'blue')}</span>`}
       ${canManage ? '<button class="soft-btn" data-auto-positions>จัดตำแหน่งอัตโนมัติ</button><button class="primary-btn" data-save-positions>บันทึกตำแหน่งวันนี้</button>' : ''}
     </div>
-    <div class="notice soft-notice">Auto Assign จะเลือกเฉพาะคนที่เปิดสิทธิ์ตำแหน่งนั้นไว้ในเมนู ผู้ใช้งานและสิทธิ์ → สิทธิ์ตำแหน่งรายวัน</div>
+    <div class="notice soft-notice">Auto Assign จะเลือกเฉพาะคนที่เปิดสิทธิ์ไว้ในเมนู Admin → สิทธิ์ตำแหน่งรายวัน</div>
     ${hasOuting(date) ? `<div class="notice">วันนี้มีออกหน่วย ระบบใช้ชุดตำแหน่ง Donor Room สำหรับออกหน่วย และจะยึดรายชื่อผู้เข้าร่วมกิจกรรมออกหน่วยเป็นหลัก</div>` : ''}
     <div class="table-wrap"><table><thead><tr><th>โซน</th><th>ตำแหน่ง</th><th>เวลาพัก</th><th>ผู้รับผิดชอบ</th><th>ผู้ปฏิบัติหลัก</th><th>หน้าที่โดยย่อ</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td>${escapeHtml(r.zone)}</td><td><b>${escapeHtml(r.position_code)}</b></td><td>${escapeHtml(r.break_time)}</td><td>${canManage ? `<select data-position-staff="${escapeHtml(r.position_code)}"><option value="">-</option>${staffOptionList(r.staff_id, s => positionCandidateOk(s, r, date))}</select>` : `<b>${escapeHtml(staffNick(r.staff_id))}</b>`}</td><td>${escapeHtml(r.main_rule)}</td><td>${escapeHtml(r.job_desc)}</td></tr>`).join('')}
+      ${rows.map(r => `<tr><td>${escapeHtml(r.zone)}</td><td><b>${escapeHtml(r.position_code)}</b></td><td>${escapeHtml(r.break_time)}</td><td>${canManage ? `<select data-position-staff="${escapeHtml(r.position_code)}"><option value="">-</option>${staffOptionList(r.staff_id, s => positionCandidateOk(s, r, date))}</select>` : `${staffPill(r.staff_id)}`}</td><td>${escapeHtml(r.main_rule)}</td><td>${escapeHtml(r.job_desc)}</td></tr>`).join('')}
     </tbody></table></div>
   </div>`;
 }
@@ -972,7 +1035,7 @@ function renderOtPage() {
 function renderOtTable(rows) {
   if (!rows.length) return empty('ยังไม่มีรายการ OT');
   return `<div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>วันที่</th><th>เหตุผล</th><th>ชั่วโมง</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${escapeHtml(staffNick(r.staff_id))}</td><td>${formatThaiDate(r.work_date)}<br><span class="muted">${formatThaiDateTime(r.check_out_at)}</span></td><td>${escapeHtml(r.reason)}<br><span class="muted">${escapeHtml(r.note || '')}</span></td><td>${calcOtHours(r).toFixed(1)}</td><td>${badge(r.status, r.status==='อนุมัติ'?'green':r.status==='ไม่อนุมัติ'?'red':r.status==='ส่งกลับแก้ไข'?'orange':'black')}</td><td>${isAdmin() ? `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : '-'}</td></tr>`).join('')}
+    ${rows.map(r => `<tr><td>${staffPill(r.staff_id)}</td><td>${formatThaiDate(r.work_date)}<br><span class="muted">${formatThaiDateTime(r.check_out_at)}</span></td><td>${escapeHtml(r.reason)}<br><span class="muted">${escapeHtml(r.note || '')}</span></td><td>${calcOtHours(r).toFixed(1)}</td><td>${badge(r.status, r.status==='อนุมัติ'?'green':r.status==='ไม่อนุมัติ'?'red':r.status==='ส่งกลับแก้ไข'?'orange':'black')}</td><td>${isAdmin() ? `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : '-'}</td></tr>`).join('')}
   </tbody></table></div>`;
 }
 function renderOtSummary() {
@@ -982,7 +1045,7 @@ function renderOtSummary() {
   approved.forEach(r => { map[r.staff_id] = map[r.staff_id] || { hours:0, count:0 }; map[r.staff_id].hours += calcOtHours(r); map[r.staff_id].count++; });
   const rows = Object.entries(map);
   if (!rows.length) return empty('ยังไม่มี OT ที่อนุมัติในเดือนนี้');
-  return `<div class="table-wrap"><table id="otSummaryTable"><thead><tr><th>ชื่อ</th><th>ชั่วโมง OT</th><th>จำนวนครั้ง</th></tr></thead><tbody>${rows.map(([id,r]) => `<tr><td>${escapeHtml(staffName(id))}</td><td>${r.hours.toFixed(1)}</td><td>${r.count}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table id="otSummaryTable"><thead><tr><th>ชื่อ</th><th>ชั่วโมง OT</th><th>จำนวนครั้ง</th></tr></thead><tbody>${rows.map(([id,r]) => `<tr><td>${staffPill(id)}</td><td>${r.hours.toFixed(1)}</td><td>${r.count}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function calcOtHours(r) {
   if (!r.end_time) return 0;
@@ -991,14 +1054,22 @@ function calcOtHours(r) {
   return Math.max(0, (end - start) / 36e5);
 }
 
+function getFilteredAuditLogs() {
+  if (!state.auditDate) return state.auditLogs;
+  return state.auditLogs.filter(a => toDateInput(new Date(a.created_at)) === state.auditDate);
+}
 function renderAuditPage() {
-  const rows = state.auditLogs;
+  const rows = getFilteredAuditLogs();
   return `<div class="card">
-    <div class="section-title"><h3>Audit Log ล่าสุด</h3><button class="ghost-btn" data-export-audit-excel>Export Excel</button></div>
-    <p class="hint">แสดงเป็นภาษาหน้างาน อ่านง่าย ไม่โชว์ข้อมูลหลังบ้านยาว ๆ ในตารางหลัก</p>
+    <div class="section-title"><div><h3>Audit Log ล่าสุด</h3><p class="hint">กรองเป็นรายวัน อ่านเป็นภาษาหน้างาน ไม่โชว์ข้อมูลหลังบ้านยาว ๆ ในตารางหลัก</p></div><button class="ghost-btn" data-export-audit-excel>Export Excel</button></div>
+    <div class="toolbar">
+      <label>วันที่ <input type="date" id="auditDateInput" value="${state.auditDate || ''}"></label>
+      <button class="soft-btn" data-audit-today>วันนี้</button>
+      <button class="ghost-btn" data-audit-all>แสดงทั้งหมด</button>
+    </div>
     ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>เวลา</th><th>ผู้ทำ</th><th>เหตุการณ์</th><th>รายละเอียด</th></tr></thead><tbody>
-      ${rows.map(a => `<tr><td>${formatThaiDateTime(a.created_at)}</td><td>${escapeHtml(staffNick(a.actor_id))}</td><td>${badge(auditActionLabel(a), auditBadge(a))}</td><td>${escapeHtml(auditSummary(a))}<br><button class="tiny-btn" data-audit-detail="${a.id}">ดูรายละเอียด</button></td></tr>`).join('')}
-    </tbody></table></div>` : empty('ยังไม่มี Audit Log')}
+      ${rows.map(a => `<tr><td>${formatThaiDateTime(a.created_at)}</td><td>${a.actor_id ? staffPill(a.actor_id) : '-'}</td><td>${badge(auditActionLabel(a), auditBadge(a))}</td><td>${escapeHtml(auditSummary(a))}<br><button class="tiny-btn" data-audit-detail="${a.id}">ดูรายละเอียด</button></td></tr>`).join('')}
+    </tbody></table></div>` : empty('ยังไม่มี Audit Log ในวันที่เลือก')}
   </div>`;
 }
 
@@ -1006,7 +1077,7 @@ function renderUsersPage() {
   if (!isAdmin()) return noPermission();
   return `<div class="grid">
     <div class="card">
-      <div class="section-title"><h3>เพิ่มผู้ใช้งานใหม่</h3></div>
+      <div class="section-title"><div><h3>เพิ่มผู้ใช้งานใหม่</h3><p class="hint">คนใหม่จะยังไม่ถูก Auto Assign ตารางตำแหน่งรายวัน จนกว่า Admin จะเปิดสิทธิ์ให้</p></div></div>
       <form id="newStaffForm" class="form-grid compact-form">
         <label>ชื่อเล่น <input name="nickname" required></label>
         <label>ชื่อ-สกุล <input name="full_name" required></label>
@@ -1015,14 +1086,15 @@ function renderUsersPage() {
         <label>ประเภท <select name="staff_type"><option>MT</option><option>เคิก</option><option>แพทย์</option></select></label>
         <label>ตำแหน่ง <input name="position" value="MT"></label>
         <label>Role <select name="role"><option>staff</option><option>admin</option></select></label>
-        <p class="hint wide">ผู้ใช้งานใหม่จะยังไม่ถูก Auto Assign ตารางตำแหน่งรายวัน จนกว่า Admin จะเปิดสิทธิ์ตำแหน่งให้ในตารางด้านล่าง</p>
+        <label>สีประจำตัว <input name="staff_color" type="color" value="#e8f3ff"></label>
         <button class="primary-btn" type="submit">เพิ่มผู้ใช้งาน</button>
       </form>
     </div>
     <div class="card">
-      <div class="section-title"><h3>ผู้ใช้งานและสิทธิ์</h3><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
-      <div class="table-wrap"><table><thead><tr><th>ชื่อเล่น</th><th>ชื่อ-สกุล</th><th>Email</th><th>รหัสพนักงาน</th><th>ประเภท</th><th>ตำแหน่ง</th><th>Role</th><th>Active</th><th>ลาคลอด</th><th>จัดเวร</th><th>สถานะตำแหน่งรายวัน</th><th>Auto ตำแหน่ง</th><th>Reset</th></tr></thead><tbody>
+      <div class="section-title"><div><h3>ผู้ใช้งานและสิทธิ์</h3><p class="hint">ข้อมูลบัญชี / สิทธิ์ระบบ / สีประจำตัว</p></div><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
+      <div class="table-wrap"><table><thead><tr><th>สี</th><th>ชื่อเล่น</th><th>ชื่อ-สกุล</th><th>Email</th><th>รหัสพนักงาน</th><th>ประเภท</th><th>ตำแหน่ง</th><th>Role</th><th>Active</th><th>ลาคลอด</th><th>จัดเวร</th><th>สถานะตำแหน่งรายวัน</th><th>Auto ตำแหน่ง</th><th>Reset</th></tr></thead><tbody>
         ${state.staff.map(s => `<tr data-staff-row="${s.id}">
+          <td><input class="color-input" type="color" data-field="staff_color" value="${escapeHtml(staffColor(s))}"><br>${staffPill(s)}</td>
           <td><input data-field="nickname" value="${escapeHtml(s.nickname || '')}"></td>
           <td><input data-field="full_name" value="${escapeHtml(s.full_name || '')}"></td>
           <td><input data-field="email" value="${escapeHtml(s.email || '')}" placeholder="name@mahidol.ac.th"></td>
@@ -1038,29 +1110,50 @@ function renderUsersPage() {
           <td><button class="tiny-btn" data-reset-user-email="${escapeHtml(s.email || '')}">ส่ง reset</button></td>
         </tr>`).join('')}
       </tbody></table></div>
+      <p class="hint">สิทธิ์ตำแหน่งรายวันแยกไปที่เมนู Admin → สิทธิ์ตำแหน่งรายวัน เพื่อให้ใช้ง่ายขึ้นและไม่ยาวเกินหน้า</p>
     </div>
-    ${renderPositionEligibilityMatrix()}
   </div>`;
 }
 
-function renderPositionEligibilityMatrix() {
-  const staffRows = state.staff.filter(s => s.is_active).sort((a,b) => String(a.staff_type||'').localeCompare(String(b.staff_type||''), 'th') || String(a.nickname||'').localeCompare(String(b.nickname||''), 'th'));
-  const posRows = ALL_POSITION_TEMPLATES;
-  return `<div class="card wide-card">
-    <div class="section-title">
-      <div><h3>สิทธิ์ตำแหน่งรายวัน</h3><p class="hint">ติ๊กเฉพาะตำแหน่งที่คนนั้นขึ้นงานได้จริง Auto Assign จะใช้ตารางนี้เป็นตัวกรองหลัก</p></div>
-      <button class="primary-btn" data-save-position-eligibility>บันทึกสิทธิ์ตำแหน่ง</button>
+function renderEligibilityPage() {
+  if (!isAdmin()) return noPermission();
+  const activeStaff = state.staff.filter(s => s.is_active).sort((a,b) => String(a.staff_type||'').localeCompare(String(b.staff_type||''), 'th') || String(a.nickname||'').localeCompare(String(b.nickname||''), 'th'));
+  if (!activeStaff.length) return empty('ยังไม่มีเจ้าหน้าที่ active');
+  if (!state.eligibilityStaffId || !activeStaff.some(s => s.id === state.eligibilityStaffId)) state.eligibilityStaffId = activeStaff[0].id;
+  const selected = activeStaff.find(s => s.id === state.eligibilityStaffId) || activeStaff[0];
+  const grouped = ALL_POSITION_TEMPLATES.reduce((acc, p) => { (acc[p.zone] = acc[p.zone] || []).push(p); return acc; }, {});
+  return `<div class="grid eligibility-page">
+    <div class="card eligibility-staff-panel">
+      <div class="section-title"><div><h3>เลือกเจ้าหน้าที่</h3><p class="hint">เลือกทีละคน จะเห็นชื่อค้างไว้ ไม่ต้องเลื่อนซ้าย-ขวาหนัก ๆ</p></div></div>
+      <label>เจ้าหน้าที่
+        <select id="eligibilityStaffSelect">${activeStaff.map(s => `<option value="${s.id}" ${selected.id===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select>
+      </label>
+      <div class="selected-staff-card" style="--staff-bg:${staffColor(selected)};--staff-fg:${textColorFor(staffColor(selected))}">
+        <div class="big-staff-name">${escapeHtml(selected.nickname || selected.full_name)}</div>
+        <div>${escapeHtml(selected.full_name || '')}</div>
+        <small>${escapeHtml(selected.staff_type || '-')} • ${escapeHtml(selected.position_training_status || 'ใช้งานปกติ')}</small>
+      </div>
+      <p class="hint">ถ้าคนใหม่ผ่านโปรแล้ว ให้กลับไปเมนู ผู้ใช้งานและสิทธิ์ → เปลี่ยนสถานะ และเปิด Auto ตำแหน่งก่อน จากนั้นค่อยติ๊กตำแหน่งที่ขึ้นได้ตรงหน้านี้</p>
     </div>
-    <div class="notice soft-notice">หลักการ: คนใหม่ default ยังไม่ถูกจัดอัตโนมัติ / เมื่อผ่านโปรให้เปิด Auto ตำแหน่ง + ติ๊กตำแหน่งที่ขึ้นได้ แล้วระบบจะเริ่มเกลี่ยให้อัตโนมัติ</div>
-    <div class="table-wrap eligibility-wrap"><table class="eligibility-table"><thead><tr><th class="sticky-col">เจ้าหน้าที่</th>${posRows.map(p => `<th title="${escapeHtml(p.job_desc)}">${escapeHtml(p.code)}<br><small>${escapeHtml(p.main_rule)}</small></th>`).join('')}</tr></thead><tbody>
-      ${staffRows.map(s => `<tr><th class="sticky-col"><b>${escapeHtml(s.nickname || s.full_name)}</b><br><small>${escapeHtml(s.staff_type || '-')} • ${escapeHtml(s.position_training_status || 'ใช้งานปกติ')}</small></th>${posRows.map(p => {
-        const checked = positionEligible(s, p.code);
-        const ruleOk = positionRuleOk(s, p.main_rule);
-        return `<td class="eligibility-cell ${ruleOk?'':'rule-mismatch'}"><label title="${ruleOk ? 'เปิด/ปิดสิทธิ์ตำแหน่งนี้' : 'ไม่ตรงผู้ปฏิบัติหลัก แต่ Admin ยังติ๊กได้ถ้าต้องการ'}"><input type="checkbox" data-eligibility data-staff-id="${s.id}" data-position-code="${escapeHtml(p.code)}" ${checked?'checked':''}> <span>${checked?'ได้':'-'}</span></label></td>`;
-      }).join('')}</tr>`).join('')}
-    </tbody></table></div>
+    <div class="card eligibility-position-panel">
+      <div class="section-title">
+        <div><h3>สิทธิ์ตำแหน่งรายวันของ ${escapeHtml(selected.nickname || selected.full_name)}</h3><p class="hint">ติ๊กเฉพาะตำแหน่งที่ขึ้นงานได้จริง ระบบ Auto Assign จะใช้ข้อมูลนี้เป็นตัวกรองหลัก</p></div>
+        <button class="primary-btn" data-save-position-eligibility>บันทึกสิทธิ์ตำแหน่ง</button>
+      </div>
+      <div class="position-card-grid">
+        ${Object.entries(grouped).map(([zone, positions]) => `<div class="position-zone-card"><h4>${escapeHtml(zone)}</h4>${positions.map(p => {
+          const checked = positionEligible(selected, p.code);
+          const ruleOk = positionRuleOk(selected, p.main_rule);
+          return `<label class="position-check ${checked?'checked':''} ${ruleOk?'':'rule-mismatch'}">
+            <input type="checkbox" data-eligibility data-staff-id="${selected.id}" data-position-code="${escapeHtml(p.code)}" ${checked?'checked':''}>
+            <span><b>${escapeHtml(p.code)}</b><small>${escapeHtml(p.main_rule)}${ruleOk ? '' : ' • ไม่ตรงผู้ปฏิบัติหลัก'}</small><em>${escapeHtml(p.job_desc)}</em></span>
+          </label>`;
+        }).join('')}</div>`).join('')}
+      </div>
+    </div>
   </div>`;
 }
+function renderPositionEligibilityMatrix() { return renderEligibilityPage(); }
 
 async function handleSubmit(e) {
   if (e.target.id === 'leaveForm') { e.preventDefault(); await saveLeave(e.target); }
@@ -1101,6 +1194,8 @@ async function handleClick(e) {
   if (t.dataset.otStatus) { const [id,status] = t.dataset.otStatus.split('|'); await updateOtStatus(id,status); return; }
   if (t.hasAttribute('data-export-ot-excel')) { exportTable('otSummaryTable', `OT_${state.monthKey}.xlsx`); return; }
   if (t.hasAttribute('data-export-audit-excel')) { exportAuditExcel(); return; }
+  if (t.hasAttribute('data-audit-today')) { state.auditDate = todayStr(); renderPage(); return; }
+  if (t.hasAttribute('data-audit-all')) { state.auditDate = ''; renderPage(); return; }
   if (t.hasAttribute('data-save-staff-users')) { await saveStaffUsers(); return; }
   if (t.hasAttribute('data-save-position-eligibility')) { await savePositionEligibility(); return; }
   if (t.dataset.resetUserEmail !== undefined) { await resetUserPassword(t.dataset.resetUserEmail); return; }
@@ -1109,6 +1204,8 @@ async function handleClick(e) {
 function handleChange(e) {
   if (e.target.id === 'rosterMonthInput' || e.target.id === 'scheduleMonthInput') { state.monthKey = e.target.value; state.rosterDraft = null; renderPage(); }
   if (e.target.id === 'positionDateInput') { state.positionDate = e.target.value; renderPage(); }
+  if (e.target.id === 'auditDateInput') { state.auditDate = e.target.value; renderPage(); }
+  if (e.target.id === 'eligibilityStaffSelect') { state.eligibilityStaffId = e.target.value; renderPage(); }
 }
 function calendarNav(action) {
   const d = new Date(state.calendarDate);
@@ -1381,6 +1478,7 @@ async function saveStaffUsers() {
       full_name: get('full_name') || null,
       email: get('email') || null,
       employee_code: get('employee_code') || null,
+      staff_color: get('staff_color') || null,
       staff_type: get('staff_type') || null,
       position: get('position') || null,
       role: get('role') || 'staff',
@@ -1405,6 +1503,7 @@ async function saveNewStaff(form) {
     full_name: fd.get('full_name'),
     email,
     employee_code: fd.get('employee_code') || null,
+    staff_color: fd.get('staff_color') || defaultStaffColor(fd.get('nickname')),
     staff_type: fd.get('staff_type') || null,
     position: fd.get('position') || null,
     role: fd.get('role') || 'staff',
@@ -1484,7 +1583,7 @@ function auditSummary(a) {
   return tableLabel(a.table_name);
 }
 function exportAuditExcel() {
-  const data = state.auditLogs.map(a => ({ เวลา: a.created_at, ผู้ทำ: staffName(a.actor_id), เหตุการณ์: auditActionLabel(a), เมนู: tableLabel(a.table_name), รายละเอียด: auditSummary(a), record_id: a.record_id }));
+  const data = getFilteredAuditLogs().map(a => ({ เวลา: a.created_at, ผู้ทำ: staffName(a.actor_id), เหตุการณ์: auditActionLabel(a), เมนู: tableLabel(a.table_name), รายละเอียด: auditSummary(a), record_id: a.record_id }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Audit'); XLSX.writeFile(wb, `Audit_${todayStr()}.xlsx`);
 }
 function showAuditDetail(id) {

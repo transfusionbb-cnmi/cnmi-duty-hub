@@ -202,3 +202,40 @@ details summary { cursor: pointer; font-weight: 900; color: var(--primary-dark);
   .eligibility-table th, .eligibility-table td { min-width: 96px; font-size: 12px; }
   .eligibility-table .sticky-col { min-width: 130px; }
 }
+
+/* V12 navigation groups, staff colors, easier eligibility, audit filter */
+.nav-section { display: grid; gap: 6px; margin-bottom: 14px; }
+.nav-section-title { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 12px 4px; color: #496174; font-weight: 900; letter-spacing: .01em; }
+.nav-section-title small { color: var(--muted); font-size: 11px; font-weight: 800; }
+.staff-color-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 42px; border-radius: 999px; padding: 6px 12px; background: var(--staff-bg, #e8f3ff); color: var(--staff-fg, #203245); border: 1px solid rgba(31,50,69,.14); font-weight: 900; line-height: 1; white-space: nowrap; box-shadow: 0 1px 0 rgba(255,255,255,.55) inset; }
+.staff-pill-btn { cursor: pointer; font-family: inherit; font-size: 13px; }
+.staff-pill-btn:hover { filter: brightness(.97); transform: translateY(-1px); }
+.staff-chip { background: var(--staff-bg, #fff); color: var(--staff-fg, #203245); border-color: rgba(31,50,69,.16); }
+.staff-chip .badge { background: rgba(255,255,255,.72); color: #203245; }
+.mini-profile .staff-color-pill { margin-bottom: 6px; }
+.color-input { width: 52px; height: 34px; padding: 2px; border-radius: 10px; }
+.eligibility-page { grid-template-columns: 320px minmax(0,1fr); align-items: start; }
+.eligibility-staff-panel { position: sticky; top: 92px; }
+.selected-staff-card { margin-top: 14px; border-radius: 22px; padding: 18px; background: var(--staff-bg, #e8f3ff); color: var(--staff-fg, #203245); font-weight: 800; display: grid; gap: 6px; border: 1px solid rgba(31,50,69,.12); }
+.big-staff-name { font-size: 28px; font-weight: 900; }
+.position-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.position-zone-card { border: 1px solid var(--line); border-radius: 20px; background: #fbfdff; padding: 14px; display: grid; gap: 8px; }
+.position-zone-card h4 { margin: 0 0 4px; color: #263746; }
+.position-check { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; border: 1px solid var(--line); background: #fff; border-radius: 16px; padding: 12px; cursor: pointer; }
+.position-check input { width: auto; margin-top: 3px; }
+.position-check span { display: grid; gap: 3px; }
+.position-check small { color: var(--muted); font-weight: 800; }
+.position-check em { color: #4d6075; font-style: normal; font-size: 12px; line-height: 1.35; }
+.position-check.checked { border-color: #91d1ff; background: #eef7ff; }
+.position-check.rule-mismatch { background: #fff8f0; border-color: #ffdba9; }
+.position-check.rule-mismatch small { color: #a86800; }
+#auditDateInput { min-width: 180px; }
+@media (max-width: 1100px) {
+  .eligibility-page { grid-template-columns: 1fr; }
+  .eligibility-staff-panel { position: static; }
+  .position-card-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  .nav-section-title { padding-left: 8px; }
+  .staff-color-pill { padding: 6px 10px; min-width: 36px; }
+}
