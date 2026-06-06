@@ -1,4 +1,4 @@
-/* CNMI Duty Hub V21 - roster scroll restore, HR checked filter, calendar HR badge */
+/* CNMI Duty Hub V25 - balanced monthly position assignment */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -656,6 +656,60 @@ function sortPositionRows(rows) {
     if (pi) return pi;
     return compareStaffOrder(state.staff.find(s=>s.id===a.staff_id), state.staff.find(s=>s.id===b.staff_id));
   });
+}
+
+function positionLoadWeight(positionOrCode) {
+  const code = typeof positionOrCode === 'string' ? positionBaseCode(positionOrCode) : positionBaseCode(positionOrCode?.code || positionOrCode?.position_code);
+  // ใช้เป็นคะแนนภาระโดยประมาณ ไม่ใช่เงิน/OT จริง เพื่อช่วยเกลี่ยตำแหน่งที่งานหนักหรือผูก QC ไม่ให้กระจุก
+  const weights = {
+    'BB-Report': 1.25,
+    'DR-Processing': 1.25,
+    'BB-Approve': 1.15,
+    'BB-Manual+IH-500 (1)': 1.15,
+    'BB-Manual+IH-500 (2)': 1.15,
+    'DR-Main': 1.10,
+    'DR-Main 1': 1.10,
+    'DR-Main 2': 1.10,
+    'DR-Preparation': 1.10,
+    'DR-Finger 1': 1.00,
+    'DR-Finger 2': 1.00,
+    'DR-Registration': 0.95,
+    'DR-Support': 0.90,
+    'BB-Support': 0.90
+  };
+  return weights[code] || 1;
+}
+function recentMonthPositionPenalty(rows, staffId, date, position) {
+  let penalty = 0;
+  const code = positionBaseCode(position?.code || position?.position_code);
+  const zone = position?.zone || positionZoneForCode(code);
+  const d0 = parseDate(date);
+  for (let i = 1; i <= 5; i++) {
+    const d = new Date(d0);
+    d.setDate(d0.getDate() - i);
+    const ds = toDateInput(d);
+    const prev = rows.find(r => r.staff_id === staffId && r.work_date === ds);
+    if (!prev) continue;
+    const prevCode = positionBaseCode(prev.position_code);
+    const prevZone = prev.zone || positionZoneForCode(prevCode);
+    if (prevCode === code) penalty += Math.max(0, 36 - (i * 6));
+    if (prevZone === zone) penalty += Math.max(0, 12 - (i * 2));
+  }
+  return penalty;
+}
+function monthPositionCandidateScore(staff, position, counts, rows, date, options={}) {
+  const c = counts[staff.id] || { total:0, byCode:{}, byZone:{}, load:0 };
+  const code = positionBaseCode(position.code || position.position_code);
+  const zone = position.zone || positionZoneForCode(code);
+  const sameCode = c.byCode?.[code] || 0;
+  const sameZone = c.byZone?.[zone] || 0;
+  const total = c.total || 0;
+  const load = c.load || 0;
+  const recent = options.ignoreRecent ? 0 : recentMonthPositionPenalty(rows, staff.id, date, position);
+  const zonePreferenceBonus = options.preferBloodBank && (zone === 'Blood Bank' || zone === 'Manual') ? -18 : 0;
+  const outingBalance = zone === 'ออกหน่วย' ? ((c.byZone?.['ออกหน่วย'] || 0) * 65) : 0;
+  // น้ำหนักหลัก: ตำแหน่งเดิม > โซนเดิม > จำนวนวันรวม > ภาระรวม > ความถี่ติดกัน
+  return (sameCode * 120) + (sameZone * 34) + (total * 18) + (load * 16) + recent + outingBalance + zonePreferenceBonus + (staffOrderIndex(staff) * 0.01);
 }
 function supportsRequiredRole(staff, required) {
   if (!required) return true;
@@ -1422,10 +1476,11 @@ function buildMonthlyPositionDraft(key) {
   const addCount = (staffId, code) => {
     if (!staffId) return;
     const base = positionBaseCode(code);
-    counts[staffId] = counts[staffId] || { total:0, byCode:{}, byZone:{} };
+    counts[staffId] = counts[staffId] || { total:0, byCode:{}, byZone:{}, load:0 };
     counts[staffId].total++;
     counts[staffId].byCode[base] = (counts[staffId].byCode[base] || 0) + 1;
     counts[staffId].byZone[positionZoneForCode(base)] = (counts[staffId].byZone[positionZoneForCode(base)] || 0) + 1;
+    counts[staffId].load = (counts[staffId].load || 0) + positionLoadWeight(base);
   };
   const chooseForPosition = (position, date, pool, used, preferredId=null) => {
     if (preferredId && !used.has(preferredId)) {
@@ -1433,7 +1488,7 @@ function buildMonthlyPositionDraft(key) {
       if (pool.some(x => x.id === preferredId) && positionCandidateOk(fs, position, date)) return fs;
     }
     const candidates = pool.filter(st => !used.has(st.id) && positionCandidateOk(st, position, date));
-    candidates.sort((a,b) => ((counts[a.id]?.byCode?.[position.code] || 0) - (counts[b.id]?.byCode?.[position.code] || 0)) || ((counts[a.id]?.total || 0) - (counts[b.id]?.total || 0)) || compareStaffOrder(a,b));
+    candidates.sort((a,b) => monthPositionCandidateScore(a, position, counts, rows, date, { ignoreRecent: !!preferredId }) - monthPositionCandidateScore(b, position, counts, rows, date, { ignoreRecent: !!preferredId }) || compareStaffOrder(a,b));
     return candidates[0] || null;
   };
   const choosePositionForStaff = (staff, date, templates, preferBloodBank=false) => {
@@ -1443,7 +1498,7 @@ function buildMonthlyPositionDraft(key) {
       const za = a.zone === 'Blood Bank' || a.zone === 'Manual' ? 0 : 1;
       const zb = b.zone === 'Blood Bank' || b.zone === 'Manual' ? 0 : 1;
       if (preferBloodBank && za !== zb) return za - zb;
-      return ((counts[staff.id]?.byCode?.[a.code] || 0) - (counts[staff.id]?.byCode?.[b.code] || 0)) || a.code.localeCompare(b.code);
+      return monthPositionCandidateScore(staff, a, counts, rows, date, { preferBloodBank }) - monthPositionCandidateScore(staff, b, counts, rows, date, { preferBloodBank }) || a.code.localeCompare(b.code);
     });
     return usable[0];
   };
