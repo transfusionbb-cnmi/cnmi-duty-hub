@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=28" />
 </head>
 <body>
   <div id="setupWarning" class="setup-warning hidden">
@@ -19,7 +19,7 @@
     <div class="auth-card">
       <div class="brand-mark">CNMI</div>
       <h1>ระบบเวรและกิจกรรมหน่วยงาน</h1>
-      <p class="muted">Login ด้วยอีเมล Mahidol และรหัสผ่านของเจ้าหน้าที่</p>
+      <p class="muted">Login ด้วยอีเมล Mahidol และรหัสผ่านของระบบ ใช้รายชื่อเจ้าหน้าที่เป็น whitelist ก่อนเข้าใช้งาน</p>
 
       <div class="auth-tabs">
         <button class="auth-tab active" data-auth-tab="login">เข้าสู่ระบบ</button>
@@ -42,7 +42,7 @@
           <input id="setupPasswordEmail" type="email" placeholder="name@mahidol.ac.th" autocomplete="username" required>
         </label>
         <button class="primary-btn full-btn" type="submit">ส่งลิงก์ให้ตั้งรหัสผ่านใหม่</button>
-        <p class="hint">ระบบจะส่งลิงก์เฉพาะอีเมลที่อยู่ในรายชื่อเท่านั้น</p>
+        <p class="hint">ระบบจะส่งลิงก์เฉพาะอีเมลที่อยู่ในรายชื่อ staff_profiles และเปิดใช้งานแล้วเท่านั้น</p>
       </form>
 
       <form id="resetPasswordForm" class="auth-panel reset-panel hidden">
@@ -97,7 +97,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=28"></script>
+  <script src="app.js?v=28"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* CNMI Duty Hub V25 - balanced monthly position assignment */
+/* CNMI Duty Hub V28 - OT wording + cache busting */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -23,7 +23,7 @@ const NAV_GROUPS = [
 
 const LEAVE_TYPES = ['ลาพักร้อน','ลากิจ','ลาป่วย','ลาคลอด','ไม่รับเวร','อื่นๆ'];
 const ACTIVITY_TYPES = ['ประชุม','อบรม','ออกหน่วย','ตรวจมาตรฐาน','ซ้อม CODE','อื่นๆ'];
-const OT_REASONS = ['มาช่วยปั่น','มาช่วยจ่ายเลือด','มาช่วยออกหน่วย','อยู่ต่อเคลียร์งาน','มาช่วยงาน CQI','อื่นๆ'];
+const OT_REASONS = ['มาช่วยปั่นเลือด','มาช่วยจ่ายเลือด','มาช่วยออกหน่วย','อยู่ต่อเคลียร์งาน','มาช่วยงาน CQI','อื่นๆ'];
 const HR_STATUSES = ['รอตรวจสอบ','ตรวจสอบแล้ว','รอเอกสาร','ยกเลิก'];
 const OT_STATUSES = ['รออนุมัติ','อนุมัติ','ไม่อนุมัติ','ส่งกลับแก้ไข'];
 const DUTY_COLUMNS = ['ชบด1','ชบด2','ชบด3','ช4A','ช4B','ช3A','ช3B','ช9-เคิก','ช9-MT'];
