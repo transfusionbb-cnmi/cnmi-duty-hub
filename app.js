@@ -230,8 +230,9 @@ function friendlyDbError(error) {
   if (msg.includes('violates not-null constraint')) return 'บันทึกไม่สำเร็จ เพราะมีข้อมูลจำเป็นบางช่องว่างอยู่ กรุณาตรวจช่องที่ยังไม่ได้เลือก';
   if (msg.includes('duplicate key')) return 'บันทึกซ้ำกับข้อมูลเดิม กรุณารีเฟรชแล้วลองใหม่';
   if (msg.includes('row-level security')) return 'สิทธิ์ไม่พอสำหรับบันทึกข้อมูลนี้ กรุณาใช้บัญชี Admin หรืออินชาร์จที่ได้รับสิทธิ์';
-  if (msg.includes('admin_save_leave') || msg.includes('function public.admin_save_leave') || msg.includes('Could not find the function')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V26 ใน Supabase';
-  if (msg.includes('admin_record_reason') || msg.includes('recorded_by_admin')) return 'ยังบันทึกลาแทนไม่ได้ เพราะฐานข้อมูลยังไม่มีช่องสำหรับ Admin บันทึกแทน กรุณา Run SQL Patch V26';
+  if (msg.includes('admin_upsert_leave_v27') || msg.includes('function public.admin_upsert_leave_v27')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V27 ใน Supabase';
+  if (msg.includes('admin_save_leave') || msg.includes('function public.admin_save_leave') || msg.includes('Could not find the function')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V27 ใน Supabase';
+  if (msg.includes('admin_record_reason') || msg.includes('recorded_by_admin')) return 'ยังบันทึกลาแทนไม่ได้ เพราะฐานข้อมูลยังไม่มีช่องสำหรับ Admin บันทึกแทน กรุณา Run SQL Patch V27';
   return msg || 'เกิดข้อผิดพลาดขณะบันทึกข้อมูล';
 }
 function setBusy(on, msg='กำลังโหลด') {
@@ -960,9 +961,6 @@ function renderLeavePage() {
           <label>ประเภท
             <select name="type" required>${LEAVE_TYPES.map(t => `<option ${editing?.type===t?'selected':''}>${t}</option>`).join('')}</select>
           </label>
-          <label>ต้องการสลับเวรกับใคร (ถ้ามี)
-            <select name="swap_with_staff_id"><option value="">ไม่ระบุ</option>${staffOptions(editing?.swap_with_staff_id)}</select>
-          </label>
           <label>วันที่เริ่ม <input name="start_date" type="date" value="${editing?.start_date || todayStr()}" required></label>
           <label>วันที่สิ้นสุด <input name="end_date" type="date" value="${editing?.end_date || todayStr()}" required></label>
           <label>ช่วงเวลา
@@ -971,7 +969,7 @@ function renderLeavePage() {
             </select>
           </label>
           <label>เบอร์ติดต่อระหว่างลา <input name="contact_phone" value="${escapeHtml(editing?.contact_phone || '')}" placeholder="เบอร์ติดต่อ"></label>
-          <label>แนบไฟล์ <input name="file" type="file"></label>
+          <label>แนบไฟล์ (ถ้ามี) <input name="file" type="file"><span class="hint">ไม่บังคับแนบไฟล์ ถ้ามีเอกสารค่อยแนบได้</span></label>
           ${isAdmin() ? `<label class="wide">เหตุผลที่ Admin บันทึกแทน / ย้อนหลัง <textarea name="admin_record_reason" placeholder="เช่น น้องไม่สะดวกเข้าระบบ / บันทึกย้อนหลังตามใบลา / แจ้งทางโทรศัพท์">${escapeHtml(editing?.admin_record_reason || '')}</textarea></label>` : ''}
           <label class="wide">หมายเหตุ <textarea name="note" placeholder="ระบุรายละเอียดเพิ่มเติม">${escapeHtml(editing?.note || '')}</textarea></label>
           <div class="notice soft-notice wide">ถ้าวันที่ขอลามีการประกาศตารางตำแหน่งรายวันแล้ว ระบบยังบันทึกได้ แต่จะแจ้งเตือนให้ติดต่ออินชาร์จหรือหัวหน้า เพื่อให้ปรับตำแหน่งหน้างานทันที</div>
@@ -1813,7 +1811,6 @@ async function saveLeave(form) {
     leave_period: fd.get('leave_period') || 'เต็มวัน',
     note: fd.get('note'),
     contact_phone: fd.get('contact_phone'),
-    swap_with_staff_id: fd.get('swap_with_staff_id') || null,
     updated_by: currentStaffId()
   };
   if (isAdmin()) {
@@ -1843,7 +1840,7 @@ async function saveLeave(form) {
       setBusy(false);
       return showToast('กรุณาระบุเหตุผลที่ Admin บันทึกแทน/ย้อนหลัง เพื่อให้ Audit Log ชัดเจน');
     }
-    res = await sb.rpc('admin_save_leave', {
+    res = await sb.rpc('admin_upsert_leave_v27', {
       p_id: id || null,
       p_staff_id: row.staff_id,
       p_type: row.type,
@@ -1852,7 +1849,6 @@ async function saveLeave(form) {
       p_leave_period: row.leave_period,
       p_note: row.note || null,
       p_contact_phone: row.contact_phone || null,
-      p_swap_with_staff_id: row.swap_with_staff_id || null,
       p_attachment_path: row.attachment_path || null,
       p_admin_record_reason: adminReason || null,
       p_recorded_by_admin: !!row.recorded_by_admin
