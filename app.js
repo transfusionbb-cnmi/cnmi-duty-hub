@@ -601,6 +601,66 @@ function positionCandidateOk(staff, positionRow, date=todayStr()) {
     && positionRuleOk(staff, positionRow.main_rule)
     && positionEligible(staff, positionRow.code || positionRow.position_code);
 }
+
+function positionBaseCode(code='') {
+  return String(code || '').replace(/\s+#\d+$/, '').trim();
+}
+function positionTemplateByCode(code, date=todayStr()) {
+  const base = positionBaseCode(code);
+  return [...OUTING_POSITIONS, ...DEFAULT_POSITIONS].find(p => p.code === base) || DEFAULT_POSITIONS.find(p => p.code === base) || null;
+}
+function positionZoneForCode(code, fallback='') {
+  return positionTemplateByCode(code)?.zone || fallback || 'รอตรวจสอบ';
+}
+function positionLabelForCell(code='') {
+  return String(code || '').replace(/\s+#\d+$/, '').trim();
+}
+function rowForStaffPosition(staff, date, template, serialMap) {
+  const baseCode = template.code;
+  const k = `${date}|${baseCode}`;
+  serialMap[k] = (serialMap[k] || 0) + 1;
+  // หลัง V22 อนุญาตตำแหน่งเดียวกันมีหลายคนได้ แต่เก็บ code ซ้ำได้แล้วหลังรัน SQL patch
+  return {
+    work_date: date,
+    position_code: baseCode,
+    zone: template.zone,
+    break_time: template.break_time,
+    main_rule: template.main_rule,
+    job_desc: template.job_desc,
+    staff_id: staff?.id || null,
+    updated_by: currentStaffId()
+  };
+}
+function reviewRowForStaff(staff, date, reason='ต้องเลือกตำแหน่งจริง') {
+  return {
+    work_date: date,
+    position_code: 'รอตรวจสอบ',
+    zone: 'รอตรวจสอบ',
+    break_time: '-',
+    main_rule: reason,
+    job_desc: 'ระบบยังจัดตำแหน่งให้ไม่ได้ กรุณาให้ Admin/อินชาร์จเลือกตำแหน่งจริง',
+    staff_id: staff?.id || null,
+    updated_by: currentStaffId()
+  };
+}
+function dailyWorkingStaff(date) {
+  return orderedStaff(state.staff.filter(s => isDailyPositionEnabled(s) && !isActiveLeaveOn(s.id, date)));
+}
+function positionSortIndex(code, date=todayStr()) {
+  const base = positionBaseCode(code);
+  const all = [...OUTING_POSITIONS, ...DEFAULT_POSITIONS, {code:'รอตรวจสอบ'}];
+  const i = all.findIndex(p => p.code === base);
+  return i >= 0 ? i : 999;
+}
+function sortPositionRows(rows) {
+  return [...rows].sort((a,b) => {
+    const da = String(a.work_date||'').localeCompare(String(b.work_date||''));
+    if (da) return da;
+    const pi = positionSortIndex(a.position_code, a.work_date) - positionSortIndex(b.position_code, b.work_date);
+    if (pi) return pi;
+    return compareStaffOrder(state.staff.find(s=>s.id===a.staff_id), state.staff.find(s=>s.id===b.staff_id));
+  });
+}
 function supportsRequiredRole(staff, required) {
   if (!required) return true;
   if (required === 'MT_OR_TANG') return staff.staff_type === 'MT' || staff.nickname === 'แตง';
@@ -1153,11 +1213,12 @@ function showStaffStats(staffId) {
 
 function renderPositionsPage() {
   const date = state.positionDate || todayStr();
+  const existingRows = sortPositionRows(state.positions.filter(x => x.work_date === date));
   const template = positionTemplateForDate(date);
-  const rows = template.map(p => {
-    const saved = state.positions.find(x => x.work_date === date && x.position_code === p.code);
-    return { ...p, ...(saved || {}), position_code: p.code };
-  });
+  const rows = existingRows.length ? existingRows.map(r => {
+    const base = positionTemplateByCode(r.position_code, date) || {};
+    return { ...base, ...r, code: r.position_code, position_code: r.position_code || base.code };
+  }) : template.map(p => ({ ...p, position_code: p.code, staff_id: null }));
   const canManage = canManagePositions(date);
   const key = date.slice(0,7);
   const incharge = currentInchargeForMonth(key);
@@ -1173,13 +1234,16 @@ function renderPositionsPage() {
     </div>
     <div class="notice soft-notice">ตารางรายวันมาจาก default รายเดือนก่อน อินชาร์จปรับได้ตามคนลา/งานจริง แล้วกดประกาศก่อน 07:30 น. หากมีคนลาหลังประกาศ ให้แจ้งอินชาร์จหรือหัวหน้าเพื่อปรับหน้างาน</div>
     ${noPosition ? `<div class="notice">วันนี้เป็น${isHolidayDate(date) ? 'วันหยุดราชการ' : 'วันเสาร์-อาทิตย์'} จึงไม่ต้องจัดตำแหน่งรายวัน</div>` : ''}
-    ${!noPosition && hasOuting(date) ? `<div class="notice">วันนี้มีออกหน่วย ระบบใช้ชุดตำแหน่ง Donor Room สำหรับออกหน่วย และจะยึดรายชื่อผู้เข้าร่วมกิจกรรมออกหน่วยเป็นหลัก</div>` : ''}
+    ${!noPosition && hasOuting(date) ? `<div class="notice">วันนี้มีออกหน่วย: คนที่ถูกติ๊กในกิจกรรมจะถูกจัดลงชุดออกหน่วย ส่วนคนที่เหลือจะถูกเกลี่ยไปตำแหน่งห้อง Blood Bank</div>` : ''}
     ${noPosition ? empty('ไม่มีตารางตำแหน่งรายวันสำหรับวันนี้') : `<div class="table-wrap"><table><thead><tr><th>โซน</th><th>ตำแหน่ง</th><th>เวลาพัก</th><th>ผู้รับผิดชอบ</th><th>ผู้ปฏิบัติหลัก</th><th>หน้าที่โดยย่อ</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td>${escapeHtml(r.zone)}</td><td><b>${escapeHtml(r.position_code)}</b></td><td>${escapeHtml(r.break_time)}</td><td>${canManage ? `<select data-position-staff="${escapeHtml(r.position_code)}"><option value="">-</option>${staffOptionList(r.staff_id, s => positionCandidateOk(s, r, date))}</select>` : `${staffPill(r.staff_id)}`}</td><td>${escapeHtml(r.main_rule)}</td><td>${escapeHtml(r.job_desc)}</td></tr>`).join('')}
+      ${rows.map((r,idx) => {
+        const baseCode = positionBaseCode(r.position_code || r.code);
+        const base = positionTemplateByCode(baseCode, date) || r;
+        return `<tr><td>${escapeHtml(r.zone || base.zone || '')}</td><td><b>${escapeHtml(positionLabelForCell(r.position_code || base.code))}</b></td><td>${escapeHtml(r.break_time || base.break_time || '')}</td><td>${canManage ? `<select data-position-row="${idx}" data-position-code="${escapeHtml(base.code || r.position_code)}" data-position-zone="${escapeHtml(r.zone || base.zone || '')}" data-position-break="${escapeHtml(r.break_time || base.break_time || '')}" data-position-rule="${escapeHtml(r.main_rule || base.main_rule || '')}" data-position-job="${escapeHtml(r.job_desc || base.job_desc || '')}"><option value="">-</option>${staffOptionList(r.staff_id, s => positionBaseCode(r.position_code)==='รอตรวจสอบ' || positionCandidateOk(s, { ...base, code: base.code || r.position_code, position_code: base.code || r.position_code, main_rule: r.main_rule || base.main_rule }, date))}</select>` : `${staffPill(r.staff_id)}`}</td><td>${escapeHtml(r.main_rule || base.main_rule || '')}</td><td>${escapeHtml(r.job_desc || base.job_desc || '')}</td></tr>`;
+      }).join('')}
     </tbody></table></div>`}
   </div>`;
 }
-
 function renderPositionMonthPage() {
   if (!isAdmin()) return noPermission();
   const key = state.positionMonthKey || state.monthKey;
@@ -1198,7 +1262,7 @@ function renderPositionMonthPage() {
       <span>${badge(`มีข้อมูล ${savedCount} รายการ`, savedCount ? 'green' : 'black')}</span>
       <span>${badge(`วันทำงาน ${workingDays} วัน`, 'blue')}</span>
     </div>
-    <div class="notice soft-notice">หลักการ: เสาร์-อาทิตย์และวันหยุดราชการขึ้น WEEKEND/HOLIDAY และไม่จัดตำแหน่ง ส่วนวันที่มีออกหน่วยจะใช้ชุดตำแหน่งออกหน่วยแทนตำแหน่งปกติจากรายชื่อผู้เข้าร่วมกิจกรรม และวันทำงานห้ามปล่อยคนพร้อมทำงานเป็น “-”</div>
+    <div class="notice soft-notice">หลักการ: เสาร์-อาทิตย์และวันหยุดราชการขึ้น WEEKEND/HOLIDAY และไม่จัดตำแหน่ง วันที่มีออกหน่วยจะจัดผู้เข้าร่วมกิจกรรมลงชุดออกหน่วย ส่วนคนที่เหลือจะถูกเกลี่ยให้อยู่ตำแหน่งห้อง Blood Bank</div>
     <div class="notice soft-notice">BB-Report และ DR-Processing จะพยายามฟิคเป็นรายสัปดาห์เพื่อเก็บ QC ต่อเนื่อง ถ้าเกลี่ยแล้วคนนั้นยังไม่มีตำแหน่ง ระบบจะแสดง “รอตรวจสอบ” ให้ Admin ปรับเอง ไม่ใส่ตำแหน่งเสริมปลอม</div>
     ${renderMonthPositionSummaryHint(rows, dates)}${renderMonthPositionMatrix(rows, dates)}
   </div>`;
@@ -1314,10 +1378,11 @@ function renderMonthPositionCell(staff, date, codes) {
   const leave = isActiveLeaveOn(staff.id, date);
   const outing = hasOuting(date);
   if (noDay) return `<td class="matrix-cell no-position-day"><span>${isHolidayDate(date) ? 'HOLIDAY' : 'WEEKEND'}</span></td>`;
-  const cls = `${outing ? 'outing-cell' : ''} ${leave ? 'leave-cell' : ''} ${!codes.length && !leave ? 'needs-review-cell' : ''}`.trim();
-  const text = codes.length ? codes.join('<br>') : (leave ? 'ลา/ไม่รับเวร' : 'รอตรวจสอบ');
+  const cleanCodes = codes.map(positionLabelForCell);
+  const cls = `${outing ? 'outing-cell' : ''} ${leave ? 'leave-cell' : ''} ${!cleanCodes.length && !leave ? 'needs-review-cell' : ''}`.trim();
+  const text = cleanCodes.length ? cleanCodes.join('<br>') : (leave ? 'ลา/ไม่รับเวร' : 'รอตรวจสอบ');
   const leaveMark = leave ? '<div class="cell-note">ไม่ต้องจัดตำแหน่ง</div>' : '';
-  const outingMark = outing && codes.length ? '<div class="cell-note">ออกหน่วย</div>' : '';
+  const outingMark = outing && cleanCodes.length ? '<div class="cell-note">ออกหน่วย</div>' : '';
   return `<td class="matrix-cell ${cls}"><span>${text}</span>${leaveMark}${outingMark}</td>`;
 }
 function workingPositionStaffIdsForDate(date) {
@@ -1355,51 +1420,97 @@ function buildMonthlyPositionDraft(key) {
   const counts = {};
   const rows = [];
   const weeklyFixed = {};
+  const serialMap = {};
   const addCount = (staffId, code) => {
     if (!staffId) return;
-    counts[staffId] = counts[staffId] || { total:0, byCode:{} };
+    const base = positionBaseCode(code);
+    counts[staffId] = counts[staffId] || { total:0, byCode:{}, byZone:{} };
     counts[staffId].total++;
-    counts[staffId].byCode[code] = (counts[staffId].byCode[code] || 0) + 1;
+    counts[staffId].byCode[base] = (counts[staffId].byCode[base] || 0) + 1;
+    counts[staffId].byZone[positionZoneForCode(base)] = (counts[staffId].byZone[positionZoneForCode(base)] || 0) + 1;
   };
-  const pick = (p, date, used, fixedPreferred=null) => {
-    const poolIds = hasOuting(date) ? outingParticipants(date).filter(id => workingPositionStaffIdsForDate(date).includes(id)) : workingPositionStaffIdsForDate(date);
-    if (fixedPreferred && !used.has(fixedPreferred)) {
-      const fs = state.staff.find(x => x.id === fixedPreferred);
-      if (poolIds.includes(fixedPreferred) && positionCandidateOk(fs, p, date)) return fs;
+  const chooseForPosition = (position, date, pool, used, preferredId=null) => {
+    if (preferredId && !used.has(preferredId)) {
+      const fs = state.staff.find(x => x.id === preferredId);
+      if (pool.some(x => x.id === preferredId) && positionCandidateOk(fs, position, date)) return fs;
     }
-    const candidates = state.staff.filter(st => poolIds.includes(st.id) && !used.has(st.id) && positionCandidateOk(st, p, date));
-    candidates.sort((a,b) => ((counts[a.id]?.byCode?.[p.code] || 0) - (counts[b.id]?.byCode?.[p.code] || 0)) || ((counts[a.id]?.total || 0) - (counts[b.id]?.total || 0)) || compareStaffOrder(a,b));
+    const candidates = pool.filter(st => !used.has(st.id) && positionCandidateOk(st, position, date));
+    candidates.sort((a,b) => ((counts[a.id]?.byCode?.[position.code] || 0) - (counts[b.id]?.byCode?.[position.code] || 0)) || ((counts[a.id]?.total || 0) - (counts[b.id]?.total || 0)) || compareStaffOrder(a,b));
     return candidates[0] || null;
+  };
+  const choosePositionForStaff = (staff, date, templates, preferBloodBank=false) => {
+    const usable = templates.filter(p => positionCandidateOk(staff, p, date));
+    if (!usable.length) return null;
+    usable.sort((a,b) => {
+      const za = a.zone === 'Blood Bank' || a.zone === 'Manual' ? 0 : 1;
+      const zb = b.zone === 'Blood Bank' || b.zone === 'Manual' ? 0 : 1;
+      if (preferBloodBank && za !== zb) return za - zb;
+      return ((counts[staff.id]?.byCode?.[a.code] || 0) - (counts[staff.id]?.byCode?.[b.code] || 0)) || a.code.localeCompare(b.code);
+    });
+    return usable[0];
+  };
+  const addRow = (staff, date, position) => {
+    if (!staff || !position) return;
+    rows.push(rowForStaffPosition(staff, date, position, serialMap));
+    addCount(staff.id, position.code);
   };
   for (let day=1; day<=last; day++) {
     const date = `${y}-${pad(m)}-${pad(day)}`;
     if (isNoPositionDay(date)) continue;
+    const working = dailyWorkingStaff(date);
+    if (!working.length) continue;
+    const used = new Set();
+    if (hasOuting(date)) {
+      const participantIds = new Set(outingParticipants(date));
+      const outingPool = working.filter(st => participantIds.has(st.id));
+      const roomPool = working.filter(st => !participantIds.has(st.id));
+
+      // 1) คนที่ถูกติ๊กในกิจกรรมออกหน่วย ต้องถูกเฉลี่ยลงชุดออกหน่วยก่อน
+      OUTING_POSITIONS.forEach(p => {
+        const staff = chooseForPosition(p, date, outingPool, used);
+        if (staff) { used.add(staff.id); addRow(staff, date, p); }
+      });
+      // ถ้าคนออกหน่วยมากกว่าช่องหลัก ให้ยังอยู่ในชุดออกหน่วยจริง ไม่ไป BB
+      outingPool.filter(st => !used.has(st.id)).forEach(st => {
+        const p = choosePositionForStaff(st, date, OUTING_POSITIONS, false) || OUTING_POSITIONS.find(x => x.code === 'DR-Main 2') || OUTING_POSITIONS[0];
+        used.add(st.id); addRow(st, date, p);
+      });
+
+      // 2) คนที่ไม่ได้ไปออกหน่วย ให้เกลี่ยอยู่ห้อง Blood Bank/Manual เท่านั้น
+      const bbTemplates = DEFAULT_POSITIONS.filter(p => p.zone === 'Blood Bank' || p.zone === 'Manual');
+      roomPool.forEach(st => {
+        const p = choosePositionForStaff(st, date, bbTemplates, true);
+        if (p) addRow(st, date, p);
+        else rows.push(reviewRowForStaff(st, date, 'ไม่พบตำแหน่ง Blood Bank ที่ตรงสิทธิ์/ผู้ปฏิบัติหลัก'));
+      });
+      continue;
+    }
+
+    // วันทำงานปกติ: จัดตำแหน่งหลักก่อน แล้วทุกคนที่เหลือต้องได้ตำแหน่งจริง ไม่ใช้ตำแหน่งเสริมปลอม
     const wk = weekKeyOf(date);
     weeklyFixed[wk] = weeklyFixed[wk] || {};
-    const used = new Set();
-    const usedCodes = new Set();
-    positionTemplateForDate(date).forEach(p => {
-      usedCodes.add(p.code);
-      let staff = null;
-      if (!hasOuting(date) && ['BB-Report','DR-Processing'].includes(p.code)) {
-        if (!weeklyFixed[wk][p.code]) {
-          const chosen = pick(p, date, used);
-          weeklyFixed[wk][p.code] = chosen?.id || null;
-        }
-        staff = pick(p, date, used, weeklyFixed[wk][p.code]);
-      } else {
-        staff = pick(p, date, used);
+    ['BB-Report','DR-Processing'].forEach(code => {
+      const p = DEFAULT_POSITIONS.find(x => x.code === code);
+      if (!p) return;
+      if (!weeklyFixed[wk][code]) {
+        const chosen = chooseForPosition(p, date, working, used);
+        weeklyFixed[wk][code] = chosen?.id || null;
       }
-      if (staff) { used.add(staff.id); addCount(staff.id, p.code); }
-      rows.push({ work_date: date, position_code: p.code, zone: p.zone, break_time: p.break_time, main_rule: p.main_rule, job_desc: p.job_desc, staff_id: staff?.id || null, updated_by: currentStaffId() });
+      const staff = chooseForPosition(p, date, working, used, weeklyFixed[wk][code]);
+      if (staff) { used.add(staff.id); addRow(staff, date, p); }
     });
-
-    // V18: ไม่ใส่ตำแหน่งเสริมปลอมเพื่อกลบช่องว่าง
-    // ถ้าวันทำงานแล้วยังไม่มีตำแหน่ง จะแสดงใน matrix เป็น “รอตรวจสอบ” เพื่อให้ Admin เลือกตำแหน่งจริงเอง
+    DEFAULT_POSITIONS.filter(p => !['BB-Report','DR-Processing'].includes(p.code)).forEach(p => {
+      const staff = chooseForPosition(p, date, working, used);
+      if (staff) { used.add(staff.id); addRow(staff, date, p); }
+    });
+    working.filter(st => !used.has(st.id)).forEach(st => {
+      const p = choosePositionForStaff(st, date, DEFAULT_POSITIONS, false);
+      if (p) addRow(st, date, p);
+      else rows.push(reviewRowForStaff(st, date, 'ไม่พบตำแหน่งที่ตรงสิทธิ์/ผู้ปฏิบัติหลัก'));
+    });
   }
   return { monthKey: key, rows };
 }
-
 
 function renderOtPage() {
   const myDuty = state.rosterAssignments.some(x => x.duty_date === todayStr() && x.staff_id === currentStaffId());
@@ -1846,13 +1957,26 @@ async function saveRosterDraft(status='draft') {
 }
 
 async function savePositions() {
-  const date = $('positionDateInput').value;
+  const date = $('positionDateInput')?.value || state.positionDate || todayStr();
   if (!canManagePositions(date)) return showToast('เฉพาะ Admin หรืออินชาร์จประจำเดือนนี้เท่านั้น');
-  const rows = positionTemplateForDate(date).map(p => {
-    const sel = Array.from(document.querySelectorAll('[data-position-staff]')).find(el => el.dataset.positionStaff === p.code);
-    return { work_date: date, position_code: p.code, zone: p.zone, break_time: p.break_time, main_rule: p.main_rule, job_desc: p.job_desc, staff_id: sel?.value || null, updated_by: currentStaffId() };
-  });
-  const { error } = await sb.from('daily_positions').upsert(rows, { onConflict: 'work_date,position_code' });
+  const selects = Array.from(document.querySelectorAll('[data-position-row]'));
+  const rows = selects.map(sel => {
+    const code = sel.dataset.positionCode || 'รอตรวจสอบ';
+    const base = positionTemplateByCode(code, date) || {};
+    return {
+      work_date: date,
+      position_code: code,
+      zone: sel.dataset.positionZone || base.zone || 'รอตรวจสอบ',
+      break_time: sel.dataset.positionBreak || base.break_time || '-',
+      main_rule: sel.dataset.positionRule || base.main_rule || '',
+      job_desc: sel.dataset.positionJob || base.job_desc || '',
+      staff_id: sel.value || null,
+      updated_by: currentStaffId()
+    };
+  }).filter(r => r.position_code);
+  const del = await sb.from('daily_positions').delete().eq('work_date', date);
+  if (del.error) return showToast(friendlyDbError(del.error));
+  const { error } = rows.length ? await sb.from('daily_positions').insert(rows) : { error:null };
   if (error) return showToast(friendlyDbError(error));
   await sb.from('daily_position_day_status').upsert({ work_date: date, month_key: date.slice(0,7), status: 'draft', updated_by: currentStaffId() }, { onConflict:'work_date' });
   await loadAllData(); renderPage(); showToast('บันทึกตำแหน่งรายวันแล้ว');
@@ -1869,19 +1993,26 @@ async function saveMonthlyPositions() {
   const key = state.positionMonthKey || state.monthKey;
   if (!state.monthPositionDraft || state.monthPositionDraft.monthKey !== key) state.monthPositionDraft = buildMonthlyPositionDraft(key);
   const rows = state.monthPositionDraft.rows;
-  const { error } = await sb.from('daily_positions').upsert(rows, { onConflict: 'work_date,position_code' });
-  if (error) return showToast(friendlyDbError(error));
+  const { start, end } = getMonthRange(key);
+  // V22: ลบข้อมูลเดือนนั้นก่อน แล้ว insert แถวที่เห็นในหน้า draft จริง ๆ เพื่อไม่ให้หลังบันทึกกลายเป็นอีกชุดจากข้อมูลเก่าที่ค้างอยู่
+  const del = await sb.from('daily_positions').delete().gte('work_date', start).lte('work_date', end);
+  if (del.error) return showToast(friendlyDbError(del.error));
+  const ins = rows.length ? await sb.from('daily_positions').insert(rows) : { error:null };
+  if (ins.error) return showToast(friendlyDbError(ins.error));
   const dates = [...new Set(rows.map(r => r.work_date))];
   const statusRows = dates.map(date => ({ work_date: date, month_key: key, status: 'draft', updated_by: currentStaffId() }));
-  const st = await sb.from('daily_position_day_status').upsert(statusRows, { onConflict:'work_date' });
+  const st = statusRows.length ? await sb.from('daily_position_day_status').upsert(statusRows, { onConflict:'work_date' }) : { error:null };
   if (st.error) return showToast(friendlyDbError(st.error));
+  state.monthPositionDraft = { monthKey:key, rows };
+  await loadAllData();
   state.monthPositionDraft = null;
-  await loadAllData(); renderPage(); showToast('บันทึก default ตำแหน่งรายเดือนแล้ว');
+  renderPage(); showToast('บันทึก default ตำแหน่งรายเดือนแล้ว ข้อมูลหลังบันทึกจะตรงกับ draft ที่เห็นก่อนกดบันทึก');
 }
 function autoAssignPositions() {
   const date = $('positionDateInput')?.value || state.positionDate || todayStr();
   if (!canManagePositions(date)) return showToast('เฉพาะ Admin หรืออินชาร์จประจำเดือนนี้เท่านั้น');
-  const template = positionTemplateForDate(date);
+  const selects = Array.from(document.querySelectorAll('[data-position-row]'));
+  const used = new Set(selects.map(s => s.value).filter(Boolean));
   const existing = state.positions.filter(x => x.work_date?.startsWith(date.slice(0,7)) && x.staff_id);
   const counts = {};
   existing.forEach(x => {
@@ -1889,17 +2020,21 @@ function autoAssignPositions() {
     counts[x.staff_id].total++;
     counts[x.staff_id].byCode[x.position_code] = (counts[x.staff_id].byCode[x.position_code] || 0) + 1;
   });
-  const poolIds = hasOuting(date) ? outingParticipants(date) : state.staff.filter(s=>isDailyPositionEnabled(s)).map(s=>s.id);
-  const used = new Set();
-  template.forEach(p => {
-    const select = document.querySelector(`[data-position-staff="${CSS.escape(p.code)}"]`);
-    if (!select) return;
-    if (select.value) { used.add(select.value); return; }
-    const candidates = state.staff.filter(s => poolIds.includes(s.id) && !used.has(s.id) && positionCandidateOk(s, p, date));
-    candidates.sort((a,b) => ((counts[a.id]?.byCode?.[p.code] || 0) - (counts[b.id]?.byCode?.[p.code] || 0)) || ((counts[a.id]?.total || 0) - (counts[b.id]?.total || 0)) || compareStaffOrder(a,b));
-    if (candidates[0]) { select.value = candidates[0].id; used.add(candidates[0].id); }
+  const participants = new Set(outingParticipants(date));
+  selects.forEach(sel => {
+    if (sel.value) return;
+    const code = sel.dataset.positionCode || 'รอตรวจสอบ';
+    const row = { code, position_code: code, main_rule: sel.dataset.positionRule || '', zone: sel.dataset.positionZone || '' };
+    let pool = dailyWorkingStaff(date);
+    if (hasOuting(date)) {
+      const isOuting = String(row.zone).includes('ออกหน่วย');
+      pool = pool.filter(s => isOuting ? participants.has(s.id) : !participants.has(s.id));
+    }
+    const candidates = pool.filter(s => !used.has(s.id) && (code === 'รอตรวจสอบ' || positionCandidateOk(s, row, date)));
+    candidates.sort((a,b) => ((counts[a.id]?.byCode?.[code] || 0) - (counts[b.id]?.byCode?.[code] || 0)) || ((counts[a.id]?.total || 0) - (counts[b.id]?.total || 0)) || compareStaffOrder(a,b));
+    if (candidates[0]) { sel.value = candidates[0].id; used.add(candidates[0].id); }
   });
-  showToast(hasOuting(date) ? 'จัดตำแหน่งออกหน่วยจากรายชื่อผู้เข้าร่วมแล้ว' : 'จัดตำแหน่งรายวันอัตโนมัติแล้ว');
+  showToast(hasOuting(date) ? 'จัดตำแหน่งออกหน่วยจากผู้เข้าร่วม และจัดคนที่เหลือเข้าห้อง Blood Bank แล้ว' : 'จัดตำแหน่งรายวันอัตโนมัติแล้ว');
 }
 async function saveIncharge() {
   const date = $('positionDateInput')?.value || todayStr();
