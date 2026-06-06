@@ -76,13 +76,13 @@ const DEFAULT_POSITIONS = [
 ];
 
 const OUTING_POSITIONS = [
-  { code: 'DR-Registration', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'ลงทะเบียน, คัดกรองความดัน ชีพจร อุณหภูมิ' },
-  { code: 'DR-Preparation', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'มัส', job_desc: 'เตรียม set ดูแลโปรแกรมออกหน่วย แก้ปัญหาหน้างาน ดูแลภาพรวม กลับมาลงทะเบียน' },
-  { code: 'DR-Finger 1', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'คัดกรอง สัมภาษณ์ เจาะปลายนิ้ว กลับมาปั่นเลือด' },
-  { code: 'DR-Finger 2', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'คัดกรอง สัมภาษณ์ เจาะปลายนิ้ว กลับมาปั่นเลือด' },
-  { code: 'DR-Main 1', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'เจาะเลือดตัวหลัก กลับมาปั่นเลือด' },
-  { code: 'DR-Main 2', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'เจาะเลือดตัวหลัก กลับมาปั่นเลือด' },
-  { code: 'DR-Sup', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'แก๊ส / เฟื่อง', job_desc: 'เตรียม Set เจาะ เติมน้ำดื่ม/ขนม เช็ดเตียง เก็บถุงเลือด จดอุณหภูมิห้องก่อนออกหน่วย' }
+  { code: 'DR-Registration', eligibility_code: 'OUTING:DR-Registration', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'ลงทะเบียน, คัดกรองความดัน ชีพจร อุณหภูมิ' },
+  { code: 'DR-Preparation', eligibility_code: 'OUTING:DR-Preparation', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'มัส', job_desc: 'เตรียม set ดูแลโปรแกรมออกหน่วย กรณีไปหน้างานแล้วเกิดปัญหา ดูแลภาพรวม กลับมาลงทะเบียน' },
+  { code: 'DR-Finger 1', eligibility_code: 'OUTING:DR-Finger 1', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'คัดกรอง สัมภาษณ์ เจาะปลายนิ้ว กลับมาปั่นเลือด' },
+  { code: 'DR-Finger 2', eligibility_code: 'OUTING:DR-Finger 2', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'คัดกรอง สัมภาษณ์ เจาะปลายนิ้ว กลับมาปั่นเลือด' },
+  { code: 'DR-Main 1', eligibility_code: 'OUTING:DR-Main 1', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'เจาะเลือดตัวหลัก กลับมาปั่นเลือด' },
+  { code: 'DR-Main', eligibility_code: 'OUTING:DR-Main', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'MT / แตง', job_desc: 'เจาะเลือดตัวหลัก กลับมาปั่นเลือด' },
+  { code: 'DR-Support', eligibility_code: 'OUTING:DR-Support', zone: 'ออกหน่วย', break_time: 'ออกหน่วย', main_rule: 'แก๊ส / เฟื่อง', job_desc: 'เก็บเซตเจาะ เก็บเลือด เตรียมน้ำดื่ม/ขนม เช็ดเตียง เก็บถุงเลือด จดอุณหภูมิห้องก่อนออกหน่วย' }
 ];
 
 const FALLBACK_POSITION_BASES = [
@@ -93,13 +93,7 @@ const FALLBACK_POSITION_BASES = [
 ];
 
 
-const ALL_POSITION_TEMPLATES = (() => {
-  const map = new Map();
-  [...DEFAULT_POSITIONS, ...OUTING_POSITIONS].forEach(p => {
-    if (!map.has(p.code)) map.set(p.code, p);
-  });
-  return Array.from(map.values());
-})();
+const ALL_POSITION_TEMPLATES = [...DEFAULT_POSITIONS, ...OUTING_POSITIONS];
 const POSITION_TRAINING_STATUSES = ['ใช้งานปกติ','น้องใหม่ / ยังไม่จัดอัตโนมัติ','จัดได้บางตำแหน่ง','งดจัดชั่วคราว'];
 const DEFAULT_STAFF_COLORS = {
   'มัส': '#d7f66f',
@@ -596,10 +590,11 @@ function positionEligible(staff, positionCode) {
   return !!rec?.is_eligible;
 }
 function positionCandidateOk(staff, positionRow, date=todayStr()) {
+  const eligibilityKey = positionRow.eligibility_code || positionRow.code || positionRow.position_code;
   return isDailyPositionEnabled(staff)
     && !isActiveLeaveOn(staff.id, date)
     && positionRuleOk(staff, positionRow.main_rule)
-    && positionEligible(staff, positionRow.code || positionRow.position_code);
+    && positionEligible(staff, eligibilityKey);
 }
 
 function positionBaseCode(code='') {
@@ -607,7 +602,8 @@ function positionBaseCode(code='') {
 }
 function positionTemplateByCode(code, date=todayStr()) {
   const base = positionBaseCode(code);
-  return [...OUTING_POSITIONS, ...DEFAULT_POSITIONS].find(p => p.code === base) || DEFAULT_POSITIONS.find(p => p.code === base) || null;
+  const list = hasOuting(date) ? [...OUTING_POSITIONS, ...DEFAULT_POSITIONS] : [...DEFAULT_POSITIONS, ...OUTING_POSITIONS];
+  return list.find(p => p.code === base) || null;
 }
 function positionZoneForCode(code, fallback='') {
   return positionTemplateByCode(code)?.zone || fallback || 'รอตรวจสอบ';
@@ -1474,7 +1470,7 @@ function buildMonthlyPositionDraft(key) {
       });
       // ถ้าคนออกหน่วยมากกว่าช่องหลัก ให้ยังอยู่ในชุดออกหน่วยจริง ไม่ไป BB
       outingPool.filter(st => !used.has(st.id)).forEach(st => {
-        const p = choosePositionForStaff(st, date, OUTING_POSITIONS, false) || OUTING_POSITIONS.find(x => x.code === 'DR-Main 2') || OUTING_POSITIONS[0];
+        const p = choosePositionForStaff(st, date, OUTING_POSITIONS, false) || OUTING_POSITIONS.find(x => x.code === 'DR-Main') || OUTING_POSITIONS[0];
         used.add(st.id); addRow(st, date, p);
       });
 
@@ -1653,10 +1649,11 @@ function renderEligibilityPage() {
       </div>
       <div class="position-card-grid">
         ${Object.entries(grouped).map(([zone, positions]) => `<div class="position-zone-card"><h4>${escapeHtml(zone)}</h4>${positions.map(p => {
-          const checked = positionEligible(selected, p.code);
+          const eligibilityKey = p.eligibility_code || p.code;
+          const checked = positionEligible(selected, eligibilityKey);
           const ruleOk = positionRuleOk(selected, p.main_rule);
           return `<label class="position-check ${checked?'checked':''} ${ruleOk?'':'rule-mismatch'}">
-            <input type="checkbox" data-eligibility data-staff-id="${selected.id}" data-position-code="${escapeHtml(p.code)}" ${checked?'checked':''}>
+            <input type="checkbox" data-eligibility data-staff-id="${selected.id}" data-position-code="${escapeHtml(eligibilityKey)}" ${checked?'checked':''}>
             <span><b>${escapeHtml(p.code)}</b><small>${escapeHtml(p.main_rule)}${ruleOk ? '' : ' • ไม่ตรงผู้ปฏิบัติหลัก'}</small><em>${escapeHtml(p.job_desc)}</em></span>
           </label>`;
         }).join('')}</div>`).join('')}
@@ -2166,12 +2163,16 @@ async function saveNewStaff(form) {
 async function savePositionEligibility() {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
   const checks = Array.from(document.querySelectorAll('[data-eligibility]'));
-  const rows = checks.map(cb => ({
-    staff_id: cb.dataset.staffId,
-    position_code: cb.dataset.positionCode,
-    is_eligible: cb.checked,
-    updated_by: currentStaffId()
-  }));
+  const rowMap = new Map();
+  checks.forEach(cb => {
+    rowMap.set(`${cb.dataset.staffId}|${cb.dataset.positionCode}`, {
+      staff_id: cb.dataset.staffId,
+      position_code: cb.dataset.positionCode,
+      is_eligible: cb.checked,
+      updated_by: currentStaffId()
+    });
+  });
+  const rows = Array.from(rowMap.values());
   if (!rows.length) return showToast('ไม่มีข้อมูลสิทธิ์ตำแหน่งให้บันทึก');
   const { error } = await sb.from('daily_position_eligibility').upsert(rows, { onConflict: 'staff_id,position_code' });
   if (error) return showToast(error.message);
