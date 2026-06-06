@@ -128,6 +128,10 @@ function requireMahidolEmail(email) {
   const domain = CFG.ALLOWED_DOMAIN || 'mahidol.ac.th';
   return String(email || '').toLowerCase().endsWith('@' + domain.toLowerCase());
 }
+function isPasswordRecoveryUrl() {
+  const raw = `${window.location.hash || ''}&${window.location.search || ''}`;
+  return raw.includes('type=recovery') || raw.includes('type=password_recovery');
+}
 
 async function init() {
   bindGlobalEvents();
@@ -141,13 +145,18 @@ async function init() {
   });
   sb.auth.onAuthStateChange(async (event, session) => {
     state.session = session;
-    if (event === 'PASSWORD_RECOVERY') showResetPasswordPanel();
+    if (event === 'PASSWORD_RECOVERY') {
+      showResetPasswordPanel();
+      setBusy(false);
+      return;
+    }
     if (session?.user) await enterApp();
     if (event === 'SIGNED_OUT') exitApp();
   });
   const { data } = await sb.auth.getSession();
   state.session = data.session;
-  if (state.session?.user) await enterApp();
+  if (state.session?.user && !isPasswordRecoveryUrl()) await enterApp();
+  if (isPasswordRecoveryUrl()) showResetPasswordPanel();
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -206,6 +215,7 @@ function bindGlobalEvents() {
     if (error) return showToast(error.message);
     $('resetPasswordForm').classList.add('hidden');
     showToast('เปลี่ยนรหัสผ่านแล้ว');
+    await enterApp();
   });
 
   document.body.addEventListener('click', handleClick);
@@ -227,10 +237,12 @@ function renderAuthTabs() {
   }));
 }
 function showResetPasswordPanel() {
+  $('appView').classList.add('hidden');
   document.querySelectorAll('.auth-panel').forEach(p => p.classList.remove('active'));
   $('resetPasswordForm').classList.remove('hidden');
   $('resetPasswordForm').classList.add('active');
   $('authView').classList.remove('hidden');
+  if ($('newPassword')) $('newPassword').value = '';
 }
 
 async function enterApp() {
