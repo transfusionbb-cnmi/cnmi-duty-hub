@@ -1,7 +1,7 @@
-/* CNMI Duty Hub V32 - mobile modal, leave admin, trade, GPS polish */
+/* CNMI Duty Hub V34 - dashboard wording and duty order */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
-  { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้', group: 'staff' },
+  { id: 'dashboard', icon: '📊', title: 'ภาพรวมวันนี้', subtitle: 'สรุปภาพรวมทั้งหมดของวันนี้', group: 'staff' },
   { id: 'calendar', icon: '📅', title: 'Calendar กลาง', subtitle: 'รวมลา อบรม ประชุม ออกหน่วย วันหยุด และเวร', group: 'staff' },
   { id: 'leave', icon: '🌿', title: 'แจ้งลา / ไม่รับเวร', subtitle: 'บันทึก แก้ไข ยกเลิก และแนบไฟล์', group: 'staff' },
   { id: 'activities', icon: '🗂️', title: 'กิจกรรมหน่วยงาน', subtitle: 'ประชุม อบรม ออกหน่วย ตรวจมาตรฐาน ซ้อม CODE และอื่นๆ', group: 'staff' },
@@ -178,6 +178,22 @@ function toDateInput(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pa
 function monthKey(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}`; }
 function parseDate(s) { const [y,m,d] = String(s).split('-').map(Number); return new Date(y, (m||1)-1, d||1); }
 function formatThaiDate(s) { if (!s) return '-'; const d = typeof s === 'string' ? parseDate(s.slice(0,10)) : s; return d.toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'numeric' }); }
+
+function datesBetween(startDate, endDate) {
+  const result = [];
+  if (!startDate || !endDate) return result;
+  const start = parseDate(String(startDate).slice(0, 10));
+  const end = parseDate(String(endDate).slice(0, 10));
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return result;
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const cur = new Date(start);
+  while (cur <= end) {
+    result.push(toDateInput(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
 function formatThaiDateTime(s) { if (!s) return '-'; return new Date(s).toLocaleString('th-TH', { dateStyle:'medium', timeStyle:'short' }); }
 function escapeHtml(v) { return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function asArray(v) { return Array.isArray(v) ? v : []; }
@@ -860,6 +876,24 @@ function renderParticipantCheckboxes(selected=[]) {
   return `<div class="participant-grid">${orderedStaff(state.staff.filter(s=>s.is_active)).map(s => `<label class="check-pill"><input type="checkbox" name="participant_ids" value="${s.id}" ${selected.includes(s.id)?'checked':''}> <span>${escapeHtml(s.nickname || s.full_name)} <small>${escapeHtml(s.staff_type || '')}</small></span></label>`).join('')}</div>`;
 }
 
+function dashboardDutySortOrder(date) {
+  // หน้า “ภาพรวมวันนี้”: เรียงให้คนหน้างานอ่านตามลำดับเวรจริง
+  // วันธรรมดาแสดงกลุ่ม ชบด1/2/3 แล้วตามด้วย ช4/ช4
+  // วันเสาร์-อาทิตย์/วันหยุด ถ้ามีเวรพิเศษ ให้เรียง ช3A, ช3B, ช9, ช9 ต่อท้าย
+  if (!isWeekend(date) && !isHolidayDate(date)) {
+    return ['ชบด1', 'ชบด2', 'ชบด3', 'ช4A', 'ช4B', 'ช3A', 'ช3B', 'ช9-เคิก', 'ช9-MT'];
+  }
+  return ['ชบด1', 'ชบด2', 'ชบด3', 'ช3A', 'ช3B', 'ช9-เคิก', 'ช9-MT', 'ช4A', 'ช4B'];
+}
+function sortDashboardDuties(rows, date) {
+  const order = dashboardDutySortOrder(date);
+  return [...rows].sort((a, b) => {
+    const ai = order.indexOf(a.duty_code);
+    const bi = order.indexOf(b.duty_code);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+}
+
 function renderDashboard() {
   const d = todayStr();
   const thisYear = String(new Date().getFullYear());
@@ -870,7 +904,7 @@ function renderDashboard() {
   const trainings = actToday.filter(x => x.event_type === 'อบรม');
   const meetings = actToday.filter(x => x.event_type === 'ประชุม');
   const outings = actToday.filter(x => x.event_type === 'ออกหน่วย');
-  const todayDuties = state.rosterAssignments.filter(x => x.duty_date === d);
+  const todayDuties = sortDashboardDuties(state.rosterAssignments.filter(x => x.duty_date === d), d);
   const leaveThisYear = state.leaves.filter(x => String(x.start_date).startsWith(thisYear) && x.type !== 'ไม่รับเวร' && x.status !== 'cancelled');
   const monthOt = state.otRequests.filter(x => x.work_date?.startsWith(thisMonth) && x.status === 'อนุมัติ');
   const otHours = monthOt.reduce((sum, r) => sum + calcOtHours(r), 0);
@@ -1945,59 +1979,6 @@ async function uploadFile(file, folder) {
   if (error) throw new Error(error.message);
   return path;
 }
-
-function datesBetween(startDate, endDate) {
-  const result = [];
-
-  if (!startDate || !endDate) return result;
-
-  const start = parseThaiOrISODate(startDate);
-  const end = parseThaiOrISODate(endDate);
-
-  if (!start || !end) return result;
-
-  const current = new Date(start);
-  current.setHours(0, 0, 0, 0);
-
-  const last = new Date(end);
-  last.setHours(0, 0, 0, 0);
-
-  while (current <= last) {
-    result.push(formatDateISO(current));
-    current.setDate(current.getDate() + 1);
-  }
-
-  return result;
-}
-
-function parseThaiOrISODate(value) {
-  if (!value) return null;
-
-  // รองรับ input แบบ yyyy-mm-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [y, m, d] = value.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  // รองรับ input แบบ dd/mm/yyyy เช่น 06/06/2026
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) {
-    const [d, m, y] = value.split('/').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  const fallback = new Date(value);
-  if (Number.isNaN(fallback.getTime())) return null;
-
-  return fallback;
-}
-
-function formatDateISO(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 async function saveLeave(form) {
   const fd = new FormData(form);
   const row = {
