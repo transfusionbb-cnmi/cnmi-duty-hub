@@ -903,7 +903,8 @@ function renderLeavePage() {
       <div class="card">
         <div class="section-title"><h3>${editing ? 'แก้ไขรายการ' : 'แจ้งลา / ไม่รับเวร'}</h3>${editing ? '<button class="ghost-btn" data-cancel-edit-leave>ยกเลิกแก้ไข</button>' : ''}</div>
         <form id="leaveForm" class="form-grid">
-          ${isAdmin() ? `<label class="wide">บันทึกให้เจ้าหน้าที่ <select name="staff_id" required>${staffOptions(selectedStaff)}</select><span class="hint">Admin เพิ่ม/แก้ไข/ยกเลิกแทน staff ได้ กรณีน้องไม่สะดวก</span></label>` : ''}
+          ${isAdmin() ? `<label class="wide">บันทึกให้เจ้าหน้าที่ <select name="staff_id" required>${staffOptions(selectedStaff)}</select><span class="hint">Admin เพิ่ม/แก้ไข/ยกเลิกแทน staff ได้ รวมถึงลาย้อนหลัง กรณีเจ้าหน้าที่ไม่สะดวกบันทึกเอง</span></label>` : ''}
+          ${isAdmin() ? `<div class="notice soft-notice wide"><b>โหมด Admin:</b> บันทึกลาย้อนหลัง/บันทึกแทนเจ้าหน้าที่ได้ ระบบจะเก็บ Log และระบุว่า Admin เป็นผู้บันทึกแทน</div>` : ''}
           <label>ประเภท
             <select name="type" required>${LEAVE_TYPES.map(t => `<option ${editing?.type===t?'selected':''}>${t}</option>`).join('')}</select>
           </label>
@@ -919,6 +920,7 @@ function renderLeavePage() {
           </label>
           <label>เบอร์ติดต่อระหว่างลา <input name="contact_phone" value="${escapeHtml(editing?.contact_phone || '')}" placeholder="เบอร์ติดต่อ"></label>
           <label>แนบไฟล์ <input name="file" type="file"></label>
+          ${isAdmin() ? `<label class="wide">เหตุผลที่ Admin บันทึกแทน / ย้อนหลัง <textarea name="admin_record_reason" placeholder="เช่น น้องไม่สะดวกเข้าระบบ / บันทึกย้อนหลังตามใบลา / แจ้งทางโทรศัพท์">${escapeHtml(editing?.admin_record_reason || '')}</textarea></label>` : ''}
           <label class="wide">หมายเหตุ <textarea name="note" placeholder="ระบุรายละเอียดเพิ่มเติม">${escapeHtml(editing?.note || '')}</textarea></label>
           <div class="notice soft-notice wide">ถ้าวันที่ขอลามีการประกาศตารางตำแหน่งรายวันแล้ว ระบบยังบันทึกได้ แต่จะแจ้งเตือนให้ติดต่ออินชาร์จหรือหัวหน้า เพื่อให้ปรับตำแหน่งหน้างานทันที</div>
           <button class="primary-btn wide" type="submit">${editing ? 'บันทึกการแก้ไข' : 'บันทึกรายการ'}</button>
@@ -933,7 +935,7 @@ function renderLeavePage() {
 function renderLeaveTable(rows) {
   if (!rows.length) return empty('ยังไม่มีรายการ');
   return `<div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ประเภท</th><th>ช่วงวันที่</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${escapeHtml(staffNick(r.staff_id))}</td><td>${badge(r.type, leaveBadgeClass(r.type))}</td><td>${formatThaiDate(r.start_date)} - ${formatThaiDate(r.end_date)}<br><span class="badge blue">${escapeHtml(r.leave_period || 'เต็มวัน')}</span><br><span class="muted">${escapeHtml(r.note || '')}</span></td><td>${badge(r.status || 'active', r.status==='cancelled'?'red':'green')}</td><td><div class="actions">
+    ${rows.map(r => `<tr><td>${escapeHtml(staffNick(r.staff_id))}${r.recorded_by_admin ? '<br><span class="badge purple">Admin บันทึกแทน</span>' : ''}</td><td>${badge(r.type, leaveBadgeClass(r.type))}</td><td>${formatThaiDate(r.start_date)} - ${formatThaiDate(r.end_date)}<br><span class="badge blue">${escapeHtml(r.leave_period || 'เต็มวัน')}</span><br><span class="muted">${escapeHtml(r.note || '')}</span>${r.admin_record_reason ? `<br><span class="muted">เหตุผล Admin: ${escapeHtml(r.admin_record_reason)}</span>` : ''}</td><td>${badge(r.status || 'active', r.status==='cancelled'?'red':'green')}</td><td><div class="actions">
       ${canEditOwn(r) ? `<button class="tiny-btn" data-edit-leave="${r.id}">แก้ไข</button><button class="tiny-btn danger" data-cancel-leave="${r.id}">ยกเลิก</button>` : '<span class="muted">แก้ไม่ได้</span>'}
     </div></td></tr>`).join('')}
   </tbody></table></div>`;
@@ -1760,12 +1762,21 @@ async function saveLeave(form) {
     swap_with_staff_id: fd.get('swap_with_staff_id') || null,
     updated_by: currentStaffId()
   };
+  if (isAdmin()) {
+    const isBackdated = row.start_date < todayStr();
+    row.recorded_by_admin = row.staff_id !== currentStaffId() || isBackdated;
+    row.admin_record_reason = String(fd.get('admin_record_reason') || '').trim() || null;
+  }
   if (row.end_date < row.start_date) return showToast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม');
   const requestedDates = datesBetween(row.start_date, row.end_date);
   const hasPublishedDay = requestedDates.some(positionDayPublished);
   if (hasPublishedDay && !isAdmin()) {
     row.note = [row.note, '[ระบบเตือน] วันที่ขอลามีการประกาศตารางตำแหน่งแล้ว กรุณาแจ้งอินชาร์จหรือหัวหน้า'].filter(Boolean).join(' | ');
     showToast('วันที่ขอลามีการประกาศตำแหน่งแล้ว กรุณาแจ้งอินชาร์จหรือหัวหน้าเพื่อปรับหน้างาน');
+  }
+  if (hasPublishedDay && isAdmin()) {
+    row.recorded_by_admin = true;
+    row.admin_record_reason = row.admin_record_reason || 'Admin บันทึก/แก้ไขรายการหลังประกาศตารางตำแหน่งรายวัน';
   }
   const file = fd.get('file');
   if (file && file.size) row.attachment_path = await uploadFile(file, 'leave');
@@ -1775,7 +1786,9 @@ async function saveLeave(form) {
   setBusy(false);
   if (res.error) return showToast(friendlyDbError(res.error));
   state.editingLeaveId = null;
-  await loadAllData(); renderPage(); showToast('บันทึกแล้ว');
+  await loadAllData(); renderPage();
+  const backdated = isAdmin() && row.start_date < todayStr();
+  showToast(backdated ? 'บันทึกลาย้อนหลังแทนเจ้าหน้าที่แล้ว' : 'บันทึกแล้ว');
 }
 async function cancelLeave(id) {
   if (!confirm('ยืนยันยกเลิกรายการนี้?')) return;
