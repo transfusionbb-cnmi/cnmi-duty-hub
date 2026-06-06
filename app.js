@@ -105,6 +105,17 @@ function overlapsDate(row, date) { return row.start_date <= date && row.end_date
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 function debounce(fn, wait=250) { let t; return (...args) => { clearTimeout(t); t=setTimeout(()=>fn(...args), wait); }; }
 
+// Capture recovery intent BEFORE Supabase reads/cleans the URL hash.
+// This fixes password reset links that otherwise jump straight into Dashboard.
+const INITIAL_AUTH_URL = `${window.location.search || ''}${window.location.hash || ''}`;
+const RECOVERY_INTENT = /(^|[?#&])type=(recovery|password_recovery)(&|$)/.test(INITIAL_AUTH_URL)
+  || /(^|[?#&])mode=recovery(&|$)/.test(INITIAL_AUTH_URL);
+
+function authRedirectUrl(mode='') {
+  const base = window.location.origin + window.location.pathname;
+  return mode ? `${base}?mode=${encodeURIComponent(mode)}` : base;
+}
+
 function showToast(msg) {
   const toast = $('toast');
   toast.textContent = msg;
@@ -129,8 +140,11 @@ function requireMahidolEmail(email) {
   return String(email || '').toLowerCase().endsWith('@' + domain.toLowerCase());
 }
 function isPasswordRecoveryUrl() {
-  const raw = `${window.location.hash || ''}&${window.location.search || ''}`;
-  return raw.includes('type=recovery') || raw.includes('type=password_recovery');
+  const raw = `${window.location.search || ''}${window.location.hash || ''}`;
+  return RECOVERY_INTENT
+    || raw.includes('type=recovery')
+    || raw.includes('type=password_recovery')
+    || raw.includes('mode=recovery');
 }
 
 async function init() {
@@ -140,23 +154,42 @@ async function init() {
     $('setupWarning').classList.remove('hidden');
     return;
   }
+
+  const recoveryAtPageOpen = RECOVERY_INTENT;
+
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   });
+
   sb.auth.onAuthStateChange(async (event, session) => {
     state.session = session;
-    if (event === 'PASSWORD_RECOVERY') {
+
+    // Supabase may emit PASSWORD_RECOVERY, SIGNED_IN, or clean the URL very quickly.
+    // If the page was opened from a recovery link, always show reset form first.
+    if (event === 'PASSWORD_RECOVERY' || recoveryAtPageOpen || isPasswordRecoveryUrl()) {
       showResetPasswordPanel();
       setBusy(false);
       return;
     }
+
+    if (event === 'SIGNED_OUT') {
+      exitApp();
+      return;
+    }
+
     if (session?.user) await enterApp();
-    if (event === 'SIGNED_OUT') exitApp();
   });
+
   const { data } = await sb.auth.getSession();
   state.session = data.session;
-  if (state.session?.user && !isPasswordRecoveryUrl()) await enterApp();
-  if (isPasswordRecoveryUrl()) showResetPasswordPanel();
+
+  if (recoveryAtPageOpen || isPasswordRecoveryUrl()) {
+    showResetPasswordPanel();
+    setBusy(false);
+    return;
+  }
+
+  if (state.session?.user) await enterApp();
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -180,7 +213,7 @@ function bindGlobalEvents() {
   });
 
   $('googleLoginBtn').addEventListener('click', async () => {
-    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } });
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: authRedirectUrl() } });
     if (error) showToast(error.message);
   });
 
@@ -190,7 +223,7 @@ function bindGlobalEvents() {
     const password = $('signupPassword').value;
     if (!requireMahidolEmail(email)) return showToast('ใช้ได้เฉพาะอีเมล @mahidol.ac.th');
     setBusy(true, 'กำลังสร้างบัญชี');
-    const { error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + window.location.pathname } });
+    const { error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: authRedirectUrl() } });
     setBusy(false);
     if (error) return showToast(error.message);
     showToast('ส่งคำขอยืนยันอีเมลแล้ว ถ้า Supabase เปิดยืนยันอีเมลไว้ กรุณากดยืนยันก่อนเข้าใช้');
@@ -201,7 +234,7 @@ function bindGlobalEvents() {
     const email = $('forgotEmail').value.trim();
     if (!requireMahidolEmail(email)) return showToast('ใช้ได้เฉพาะอีเมล @mahidol.ac.th');
     setBusy(true, 'กำลังส่งลิงก์');
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl('recovery') });
     setBusy(false);
     if (error) return showToast(error.message);
     showToast('ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว');
@@ -214,6 +247,9 @@ function bindGlobalEvents() {
     const { error } = await sb.auth.updateUser({ password });
     if (error) return showToast(error.message);
     $('resetPasswordForm').classList.add('hidden');
+    if (window.history?.replaceState) window.history.replaceState({}, document.title, authRedirectUrl());
+    const { data } = await sb.auth.getSession();
+    state.session = data.session;
     showToast('เปลี่ยนรหัสผ่านแล้ว');
     await enterApp();
   });
@@ -1096,7 +1132,7 @@ async function saveStaffUsers() {
 async function resetUserPassword(email) {
   if (!email) return showToast('ยังไม่มีอีเมลของผู้ใช้นี้');
   if (!confirm(`ส่งลิงก์ reset password ไปที่ ${email}?`)) return;
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl('recovery') });
   if (error) return showToast(error.message);
   showToast('ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว');
 }
