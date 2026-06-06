@@ -1,4 +1,4 @@
-/* CNMI Duty Hub V15 - Activity required fields + OT calculation + duty trade requests */
+/* CNMI Duty Hub V16 - Staff monthly position view */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'Dashboard', subtitle: 'ภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { id: 'leave', icon: '🌿', title: 'แจ้งลา / ไม่รับเวร', subtitle: 'บันทึก แก้ไข ยกเลิก และแนบไฟล์', group: 'staff' },
   { id: 'activities', icon: '🗂️', title: 'กิจกรรมหน่วยงาน', subtitle: 'ประชุม อบรม ออกหน่วย ตรวจมาตรฐาน ซ้อม CODE และอื่นๆ', group: 'staff' },
   { id: 'schedule', icon: '📋', title: 'ตารางเวรประจำเดือน', subtitle: 'ดูรายเดือน Export Excel / PDF / Print', group: 'staff' },
+  { id: 'positionMonthView', icon: '🗓️', title: 'ตารางตำแหน่งรายเดือน', subtitle: 'ดู default รายเดือนแบบอ่านอย่างเดียว', group: 'staff' },
   { id: 'positions', icon: '🧪', title: 'ตารางตำแหน่งรายวัน', subtitle: 'อินชาร์จปรับและประกาศตารางก่อนเริ่มงาน', group: 'staff' },
   { id: 'ot', icon: '⏱️', title: 'OT & Attendance', subtitle: 'Check-In, ขอ OT, อนุมัติ, สรุป', group: 'staff' },
   { id: 'audit', icon: '🕵️', title: 'Audit Log ล่าสุด', subtitle: 'ประวัติการใช้งานแบบอ่านง่าย กรองรายวันได้', group: 'staff' },
@@ -140,6 +141,7 @@ let state = {
   calendarView: 'month',
   monthKey: monthKey(new Date()),
   positionMonthKey: monthKey(new Date()),
+  positionMonthViewKey: monthKey(new Date()),
   monthPositionDraft: null,
   rosterDraft: null,
   editingLeaveId: null,
@@ -538,7 +540,8 @@ function renderPage() {
     audit: renderAuditPage,
     users: renderUsersPage,
     eligibility: renderEligibilityPage,
-    positionMonth: renderPositionMonthPage
+    positionMonth: renderPositionMonthPage,
+    positionMonthView: renderPositionMonthViewPage
   };
   content.innerHTML = (pages[state.page] || renderDashboard)();
 }
@@ -1153,6 +1156,25 @@ function renderPositionMonthPage() {
     ${renderMonthPositionMatrix(rows, dates)}
   </div>`;
 }
+
+function renderPositionMonthViewPage() {
+  const key = state.positionMonthViewKey || state.monthKey;
+  const { y, m } = getMonthRange(key);
+  const last = new Date(y, m, 0).getDate();
+  const dates = Array.from({length:last}, (_,i)=>`${y}-${pad(m)}-${pad(i+1)}`);
+  const rows = state.positions.filter(x => x.work_date?.startsWith(key));
+  const savedCount = rows.length;
+  return `<div class="card monthly-position-page readonly-month-position-page">
+    <div class="section-title"><div><h3>ตารางตำแหน่งรายเดือน ${key}</h3><p class="hint">ดู default รายเดือนแบบเดียวกับหน้าจัดตำแหน่งของ Admin แต่หน้านี้เป็นโหมดอ่านอย่างเดียว</p></div></div>
+    <div class="toolbar">
+      <label>เดือน <input type="month" id="positionMonthViewInput" value="${key}"></label>
+      <span>${badge(`ข้อมูล ${savedCount} รายการ`, savedCount ? 'green' : 'black')}</span>
+      <span>${badge('อ่านอย่างเดียว', 'blue')}</span>
+    </div>
+    <div class="notice soft-notice">หน้านี้ให้ทุกคนเห็นแผนรายเดือนเหมือนตารางที่ Admin จัดไว้ แต่แก้ไขไม่ได้ หากมีเปลี่ยนจริงตอนเช้า ให้ดูเมนูตารางตำแหน่งรายวันหลังอินชาร์จประกาศ</div>
+    ${renderMonthPositionMatrix(rows, dates)}
+  </div>`;
+}
 function positionDisplayMap(rows) {
   const map = {};
   rows.forEach(r => {
@@ -1446,6 +1468,7 @@ function handleChange(e) {
   if (e.target.id === 'auditDateInput') { state.auditDate = e.target.value; renderPage(); }
   if (e.target.id === 'eligibilityStaffSelect') { state.eligibilityStaffId = e.target.value; renderPage(); }
   if (e.target.id === 'positionMonthInput') { state.positionMonthKey = e.target.value; state.monthPositionDraft = null; renderPage(); }
+  if (e.target.id === 'positionMonthViewInput') { state.positionMonthViewKey = e.target.value; renderPage(); }
 }
 function calendarNav(action) {
   const d = new Date(state.calendarDate);
