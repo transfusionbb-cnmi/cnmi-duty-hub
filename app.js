@@ -1945,6 +1945,59 @@ async function uploadFile(file, folder) {
   if (error) throw new Error(error.message);
   return path;
 }
+
+function datesBetween(startDate, endDate) {
+  const result = [];
+
+  if (!startDate || !endDate) return result;
+
+  const start = parseThaiOrISODate(startDate);
+  const end = parseThaiOrISODate(endDate);
+
+  if (!start || !end) return result;
+
+  const current = new Date(start);
+  current.setHours(0, 0, 0, 0);
+
+  const last = new Date(end);
+  last.setHours(0, 0, 0, 0);
+
+  while (current <= last) {
+    result.push(formatDateISO(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return result;
+}
+
+function parseThaiOrISODate(value) {
+  if (!value) return null;
+
+  // รองรับ input แบบ yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  // รองรับ input แบบ dd/mm/yyyy เช่น 06/06/2026
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) {
+    const [d, m, y] = value.split('/').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  const fallback = new Date(value);
+  if (Number.isNaN(fallback.getTime())) return null;
+
+  return fallback;
+}
+
+function formatDateISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 async function saveLeave(form) {
   const fd = new FormData(form);
   const row = {
