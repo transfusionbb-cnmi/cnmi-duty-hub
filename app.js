@@ -2186,7 +2186,31 @@ function renderAuditPage() {
 
 function renderUsersPage() {
   if (!isAdmin()) return noPermission();
-  return `<div class="grid">
+  const staffRows = orderedStaff(state.staff);
+  const userCard = (s) => `<div class="admin-user-card" data-staff-row="${s.id}">
+    <div class="admin-user-head">
+      <div class="admin-user-title">${staffPill(s)}<span>${escapeHtml(s.full_name || '')}</span></div>
+      <button class="tiny-btn" data-reset-user-email="${escapeHtml(s.email || '')}">ส่ง reset</button>
+    </div>
+    <div class="admin-user-form">
+      <label>สี <input class="color-input" type="color" data-field="staff_color" value="${escapeHtml(staffColor(s))}"></label>
+      <label>ชื่อเล่น <input data-field="nickname" value="${escapeHtml(s.nickname || '')}"></label>
+      <label>ชื่อ-สกุล <input data-field="full_name" value="${escapeHtml(s.full_name || '')}"></label>
+      <label>Email <input data-field="email" value="${escapeHtml(s.email || '')}" placeholder="name@mahidol.ac.th"></label>
+      <label>รหัสพนักงาน <input data-field="employee_code" value="${escapeHtml(s.employee_code || '')}"></label>
+      <label>เบอร์โทร <input data-field="phone" value="${escapeHtml(s.phone || '')}" placeholder="เบอร์โทร"></label>
+      <label>ชื่อผู้ใช้ <input data-field="login_name" value="${escapeHtml(s.login_name || '')}" placeholder="เว้นว่างได้"></label>
+      <label>ประเภท <select data-field="staff_type"><option value="">-</option><option ${s.staff_type==='MT'?'selected':''}>MT</option><option ${s.staff_type==='เคิก'?'selected':''}>เคิก</option><option ${s.staff_type==='แพทย์'?'selected':''}>แพทย์</option></select></label>
+      <label>ตำแหน่ง <input data-field="position" value="${escapeHtml(s.position || '')}"></label>
+      <label>Role <select data-field="role"><option ${s.role==='staff'?'selected':''}>staff</option><option ${s.role==='admin'?'selected':''}>admin</option></select></label>
+      <label>Active <select data-field="is_active"><option value="true" ${s.is_active?'selected':''}>true</option><option value="false" ${!s.is_active?'selected':''}>false</option></select></label>
+      <label>สถานะจัดเวร <select data-field="roster_enabled"><option value="true" ${s.roster_enabled!==false?'selected':''}>true</option><option value="false" ${s.roster_enabled===false?'selected':''}>false</option></select></label>
+      <label>สถานะตำแหน่งรายวัน <select data-field="position_training_status">${POSITION_TRAINING_STATUSES.map(v => `<option value="${escapeHtml(v)}" ${(s.position_training_status || 'ใช้งานปกติ')===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></label>
+      <label>Auto ตำแหน่ง <select data-field="daily_position_enabled"><option value="true" ${s.daily_position_enabled!==false?'selected':''}>true</option><option value="false" ${s.daily_position_enabled===false?'selected':''}>false</option></select></label>
+      <input type="hidden" data-field="maternity_status" value="${s.maternity_status ? 'true' : 'false'}">
+    </div>
+  </div>`;
+  return `<div class="grid users-page-v48">
     <div class="card">
       <div class="section-title"><div><h3>เพิ่มผู้ใช้งานใหม่</h3><p class="hint">คนใหม่จะยังไม่ถูก Auto Assign ตารางตำแหน่งรายวัน จนกว่า Admin จะเปิดสิทธิ์ให้</p></div></div>
       <form id="newStaffForm" class="form-grid compact-form">
@@ -2204,28 +2228,9 @@ function renderUsersPage() {
       </form>
     </div>
     <div class="card">
-      <div class="section-title"><div><h3>ผู้ใช้งานและสิทธิ์</h3><p class="hint">ข้อมูลบัญชี / สิทธิ์ระบบ / สีประจำตัว</p></div><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
-      <div class="table-wrap users-desktop-table"><table><thead><tr><th>สี</th><th>ชื่อเล่น</th><th>ชื่อ-สกุล</th><th>Email</th><th>รหัสพนักงาน</th><th>เบอร์โทร</th><th>ชื่อผู้ใช้</th><th>ประเภท</th><th>ตำแหน่ง</th><th>Role</th><th>Active</th><th>ลาคลอด</th><th>จัดเวร</th><th>สถานะตำแหน่งรายวัน</th><th>Auto ตำแหน่ง</th><th>Reset</th></tr></thead><tbody>
-        ${orderedStaff(state.staff).map(s => `<tr data-staff-row="${s.id}">
-          <td><input class="color-input" type="color" data-field="staff_color" value="${escapeHtml(staffColor(s))}"><br>${staffPill(s)}</td>
-          <td><input data-field="nickname" value="${escapeHtml(s.nickname || '')}"></td>
-          <td><input data-field="full_name" value="${escapeHtml(s.full_name || '')}"></td>
-          <td><input data-field="email" value="${escapeHtml(s.email || '')}" placeholder="name@mahidol.ac.th"></td>
-          <td><input data-field="employee_code" value="${escapeHtml(s.employee_code || '')}"></td>
-          <td><input data-field="phone" value="${escapeHtml(s.phone || '')}" placeholder="เบอร์โทร"></td>
-          <td><input data-field="login_name" value="${escapeHtml(s.login_name || '')}" placeholder="ชื่อผู้ใช้"></td>
-          <td><select data-field="staff_type"><option value="">-</option><option ${s.staff_type==='MT'?'selected':''}>MT</option><option ${s.staff_type==='เคิก'?'selected':''}>เคิก</option><option ${s.staff_type==='แพทย์'?'selected':''}>แพทย์</option></select></td>
-          <td><input data-field="position" value="${escapeHtml(s.position || '')}"></td>
-          <td><select data-field="role"><option ${s.role==='staff'?'selected':''}>staff</option><option ${s.role==='admin'?'selected':''}>admin</option></select></td>
-          <td><select data-field="is_active"><option value="true" ${s.is_active?'selected':''}>true</option><option value="false" ${!s.is_active?'selected':''}>false</option></select></td>
-          <td><select data-field="maternity_status"><option value="false" ${!s.maternity_status?'selected':''}>false</option><option value="true" ${s.maternity_status?'selected':''}>true</option></select></td>
-          <td><select data-field="roster_enabled"><option value="true" ${s.roster_enabled!==false?'selected':''}>true</option><option value="false" ${s.roster_enabled===false?'selected':''}>false</option></select></td>
-          <td><select data-field="position_training_status">${POSITION_TRAINING_STATUSES.map(v => `<option value="${escapeHtml(v)}" ${(s.position_training_status || 'ใช้งานปกติ')===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></td>
-          <td><select data-field="daily_position_enabled"><option value="true" ${s.daily_position_enabled!==false?'selected':''}>true</option><option value="false" ${s.daily_position_enabled===false?'selected':''}>false</option></select></td>
-          <td><button class="tiny-btn" data-reset-user-email="${escapeHtml(s.email || '')}">ส่ง reset</button></td>
-        </tr>`).join('')}
-      </tbody></table></div>
-      <div class="mobile-cards users-mobile-cards">${orderedStaff(state.staff).map(s => `<div class="mobile-card user-mobile-card" data-staff-row="${s.id}"><div class="mobile-day-head">${staffPill(s)}${badge(s.role || 'staff', s.role==='admin'?'purple':'black')}</div><label>ชื่อเล่น <input data-field="nickname" value="${escapeHtml(s.nickname || '')}"></label><label>ชื่อ-สกุล <input data-field="full_name" value="${escapeHtml(s.full_name || '')}"></label><label>Email <input data-field="email" value="${escapeHtml(s.email || '')}"></label><label>รหัสพนักงาน <input data-field="employee_code" value="${escapeHtml(s.employee_code || '')}"></label><label>เบอร์โทร <input data-field="phone" value="${escapeHtml(s.phone || '')}"></label><label>ชื่อผู้ใช้ <input data-field="login_name" value="${escapeHtml(s.login_name || '')}" placeholder="ชื่อผู้ใช้"></label><div class="grid grid-2"><label>ประเภท <select data-field="staff_type"><option value="">-</option><option ${s.staff_type==='MT'?'selected':''}>MT</option><option ${s.staff_type==='เคิก'?'selected':''}>เคิก</option><option ${s.staff_type==='แพทย์'?'selected':''}>แพทย์</option></select></label><label>Role <select data-field="role"><option ${s.role==='staff'?'selected':''}>staff</option><option ${s.role==='admin'?'selected':''}>admin</option></select></label></div></div>`).join('')}</div>
+      <div class="section-title users-save-title"><div><h3>ผู้ใช้งานและสิทธิ์</h3><p class="hint">ปรับเป็นการ์ดรายคนแล้ว ลดการเลื่อนซ้าย-ขวา และตัดคอลัมน์ที่ไม่จำเป็นออก</p></div><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
+      <div class="admin-user-grid">${staffRows.map(userCard).join('')}</div>
+      <div class="toolbar user-bottom-save"><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
       <p class="hint">สิทธิ์ตำแหน่งรายวันแยกไปที่เมนู Admin → สิทธิ์ตำแหน่งรายวัน เพื่อให้ใช้ง่ายขึ้นและไม่ยาวเกินหน้า</p>
     </div>
   </div>`;
@@ -2917,31 +2922,42 @@ async function reviewProfileChangeRequest(id, status) {
 }
 
 async function saveStaffUsers() {
-  const rows = Array.from(document.querySelectorAll('[data-staff-row]')).map(tr => {
-    const get = field => tr.querySelector(`[data-field="${field}"]`)?.value || '';
-    return {
-      id: tr.dataset.staffRow,
-      nickname: get('nickname') || null,
-      full_name: get('full_name') || null,
-      email: get('email') || null,
-      employee_code: get('employee_code') || null,
-      phone: get('phone') || null,
-      login_name: get('login_name') || null,
-      staff_color: get('staff_color') || null,
-      staff_type: get('staff_type') || null,
-      position: get('position') || null,
-      role: get('role') || 'staff',
-      is_active: get('is_active') === 'true',
-      maternity_status: get('maternity_status') === 'true',
-      roster_enabled: get('roster_enabled') !== 'false',
-      daily_position_enabled: get('daily_position_enabled') !== 'false',
-      position_training_status: get('position_training_status') || 'ใช้งานปกติ'
+  const rowsById = new Map();
+  Array.from(document.querySelectorAll('[data-staff-row]')).forEach(tr => {
+    const id = tr.dataset.staffRow;
+    if (!id || rowsById.has(id)) return;
+    const original = state.staff.find(s => String(s.id) === String(id)) || {};
+    const get = field => tr.querySelector(`[data-field="${field}"]`)?.value;
+    const valueOr = (field, fallback='') => {
+      const v = get(field);
+      return v === undefined ? fallback : v;
     };
+    rowsById.set(id, {
+      id,
+      nickname: valueOr('nickname', original.nickname || '') || null,
+      full_name: valueOr('full_name', original.full_name || '') || null,
+      email: valueOr('email', original.email || '') || null,
+      employee_code: valueOr('employee_code', original.employee_code || '') || null,
+      phone: valueOr('phone', original.phone || '') || null,
+      login_name: valueOr('login_name', original.login_name || '') || null,
+      staff_color: valueOr('staff_color', original.staff_color || defaultStaffColor(original.nickname)) || null,
+      staff_type: valueOr('staff_type', original.staff_type || '') || null,
+      position: valueOr('position', original.position || '') || null,
+      role: valueOr('role', original.role || 'staff') || 'staff',
+      is_active: valueOr('is_active', original.is_active ? 'true' : 'false') === 'true',
+      maternity_status: valueOr('maternity_status', original.maternity_status ? 'true' : 'false') === 'true',
+      roster_enabled: valueOr('roster_enabled', original.roster_enabled === false ? 'false' : 'true') !== 'false',
+      daily_position_enabled: valueOr('daily_position_enabled', original.daily_position_enabled === false ? 'false' : 'true') !== 'false',
+      position_training_status: valueOr('position_training_status', original.position_training_status || 'ใช้งานปกติ') || 'ใช้งานปกติ'
+    });
   });
+  const rows = Array.from(rowsById.values());
+  if (!rows.length) return showToast('ไม่พบข้อมูลผู้ใช้งานให้บันทึก');
   const { error } = await sb.from('staff_profiles').upsert(rows, { onConflict: 'id' });
-  if (error) return showToast(error.message);
+  if (error) return showToast(friendlyDbError(error));
   await loadAllData(); renderPage(); showToast('บันทึกผู้ใช้งานแล้ว');
 }
+
 async function saveNewStaff(form) {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
   const fd = new FormData(form);
