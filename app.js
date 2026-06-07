@@ -776,11 +776,21 @@ async function loadAllData() {
 async function loadProfileChangeRequests() {
   const staffId = currentStaffId();
   const email = state.profile?.email || state.session?.user?.email || null;
+  const userId = state.session?.user?.id || null;
   const rows = [];
-  const addRows = (arr) => (arr || []).forEach(r => { if (r && !rows.some(x => x.id === r.id)) rows.push(r); });
+  const seen = new Set();
+  const addRows = (arr) => (arr || []).forEach(r => {
+    if (!r) return;
+    const key = r.id || `${r.staff_id || ''}|${r.requested_by || ''}|${r.field_name || ''}|${r.new_value || ''}|${r.created_at || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push(r);
+  });
 
-  // V51: ไล่เรียก RPC หลายรุ่น + direct query สำรอง เพื่อแก้เคสข้อมูลเข้า Supabase แล้วแต่หน้าเว็บไม่แสดง
+  // V52: ใช้ RPC ใหม่ก่อน แล้วค่อย fallback รุ่นเก่า/direct query
+  // สาเหตุที่แก้: บางฐานมีข้อมูลใน profile_change_requests แล้ว แต่หน้าเว็บไม่แสดง เพราะ RLS/RPC รุ่นเก่าคืนค่าว่าง
   const attempts = [
+    () => sb.rpc('list_profile_change_requests_v52', { p_staff_id: staffId, p_user_email: email, p_user_id: userId, p_is_admin: isAdmin() }),
     () => sb.rpc('list_profile_change_requests_v51', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
     () => sb.rpc('list_profile_change_requests_v50', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
     () => sb.rpc('list_profile_change_requests_v49', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
@@ -789,16 +799,23 @@ async function loadProfileChangeRequests() {
       ? sb.from('profile_change_requests').select('*').order('created_at', { ascending:false })
       : sb.from('profile_change_requests').select('*').or(`staff_id.eq.${staffId},requested_by.eq.${staffId}`).order('created_at', { ascending:false })
   ];
+
   for (const fn of attempts) {
     try {
       const res = await fn();
-      if (!res?.error) addRows(res.data || []);
+      if (res?.error) {
+        console.warn('profile change request load skipped:', res.error.message || res.error);
+        continue;
+      }
+      addRows(res.data || []);
+      if ((res.data || []).length) break;
     } catch (err) {
       console.warn('profile change request load attempt failed', err);
     }
   }
+
   rows.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-  state.profileChangeRequests = isAdmin() ? rows : rows.filter(r => r.staff_id === staffId || r.requested_by === staffId);
+  state.profileChangeRequests = isAdmin() ? rows : rows.filter(r => String(r.staff_id) === String(staffId) || String(r.requested_by) === String(staffId));
 }
 
 function renderNav() {
@@ -2976,7 +2993,7 @@ async function saveProfileChangeRequest(form) {
   const field = fd.get('field_name');
   const newValue = String(fd.get('new_value') || '').trim();
   if (!['phone','login_name','nickname','full_name'].includes(field)) return showToast('เลือกข้อมูลที่ต้องการแก้ไขไม่ถูกต้อง');
-  if (field === 'login_name' && !/^[a-zA-Z0-9._-]{2,30}$/.test(newValue)) return showToast('ชื่อผู้ใช้ควรเป็นอังกฤษ/ตัวเลข 2–30 ตัว เช่น user หรือ gift');
+  if (field === 'login_name' && !/^[a-zA-Z0-9._-]{1,30}$/.test(newValue)) return showToast('ชื่อผู้ใช้ควรเป็นอังกฤษ/ตัวเลข เช่น user หรือ gift123 หรือ 012345');
   if (!newValue) return showToast('กรุณากรอกข้อมูลใหม่');
   const oldValue = state.profile?.[field] || '';
   if (String(oldValue) === newValue) return showToast('ข้อมูลใหม่เหมือนข้อมูลเดิม');
