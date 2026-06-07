@@ -13,7 +13,7 @@ window.CNMI_CONFIG = {
 
   // ปรับพิกัดหน่วยงานจริงแล้ว เพื่อใช้ Check-In / OT geofence ถ้ายังทดสอบนอกโรงพยาบาล ให้ใช้:enabled: false แทน แต่ถ้าจะใช้จริงในพื้นที่โรงพยาบาล ให้เป็น true ได้เลย
   GEOFENCE: {
-    enabled: false,
+    enabled: true,
     lat: 13.52646,
     lng: 100.76085,
     radiusMeters: 500
@@ -21,4 +21,4 @@ window.CNMI_CONFIG = {
 
   // ปิดรับแก้วันลา/ไม่รับเวรของเดือนปัจจุบัน ตั้งแต่วันที่ 5 ของเดือน เวลา 23:59 เป็นต้นไป
   ROSTER_CLOSE_DAY: 5
-};
+  };
