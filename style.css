@@ -918,3 +918,41 @@ body.cnmi-sidebar-hidden .main-panel{grid-column:1 / -1!important;width:100%!imp
   body:not(.sidebar-open):not(.cnmi-sidebar-hidden) #sidebar.sidebar:not(.open){transform:translateX(-105%)!important;pointer-events:none!important;}
   body.sidebar-open #sidebar.sidebar.open{transform:translateX(0)!important;pointer-events:auto!important;}
 }
+
+/* V70 sidebar-only: intermediate desktop/tablet must use drawer, not permanent column */
+@media (max-width: 1180px) and (min-width: 821px) {
+  #appView.app-view {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  #sidebar.sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: 292px !important;
+    max-width: 86vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    z-index: 80 !important;
+    transform: translateX(-105%) !important;
+    transition: transform .22s ease !important;
+    box-shadow: none !important;
+  }
+  body.sidebar-open #sidebar.sidebar {
+    transform: translateX(0) !important;
+    box-shadow: 18px 0 50px rgba(20,40,60,.25) !important;
+  }
+  #appView .main-panel {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  body.sidebar-open::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(17,30,43,.28);
+    z-index: 70;
+  }
+  body.cnmi-sidebar-hidden #sidebar.sidebar {
+    display: none !important;
+  }
+}

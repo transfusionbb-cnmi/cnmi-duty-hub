@@ -795,7 +795,7 @@
     `;
     document.head.appendChild(css);
   }
-  function isSmallLayout(){ return window.matchMedia('(max-width: 820px)').matches; }
+  function isSmallLayout(){ return window.matchMedia('(max-width: 1180px)').matches; }
   function normalizeSidebarClasses(){
     const sidebar = byId('sidebar');
     if (!sidebar) return null;
