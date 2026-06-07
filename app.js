@@ -1,4 +1,4 @@
-/* CNMI Staff Planner V40 - trade wording + CNMI GPS + Thai OT menu */
+/* CNMI Staff Planner V43 - UI text cleanup, trade filters, roster/position summaries */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'ภาพรวมวันนี้', subtitle: 'สรุปภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -8,13 +8,13 @@ const NAV_ITEMS = [
   { id: 'activities', icon: '🗂️', title: 'กิจกรรมหน่วยงาน', subtitle: 'ประชุม อบรม ออกหน่วย ตรวจมาตรฐาน ซ้อม CODE และอื่นๆ', group: 'staff' },
   { id: 'schedule', icon: '📋', title: 'ตารางเวรประจำเดือน', subtitle: 'ดูรายเดือน Export Excel / PDF / Print', group: 'staff' },
   { id: 'tradeRequests', icon: '🔁', title: 'คำขอแลก/ขาย/ยกเวร', subtitle: 'รอฉันยืนยัน / รอ Admin บันทึก', group: 'staff' },
-  { id: 'positionMonthView', icon: '🗓️', title: 'ตารางตำแหน่งรายเดือน', subtitle: 'ดู default รายเดือนแบบอ่านอย่างเดียว', group: 'staff' },
-  { id: 'positions', icon: '🧪', title: 'ตารางตำแหน่งรายวัน', subtitle: 'อินชาร์จปรับและประกาศตารางก่อนเริ่มงาน', group: 'staff' },
-  { id: 'ot', icon: '⏱️', title: 'ลงชื่ออยู่เวร / ขอ OT เพิ่ม', subtitle: 'ยืนยันอยู่เวรด้วย GPS, ขอ OT เพิ่ม, อนุมัติ, สรุป', group: 'staff' },
+  { id: 'positionMonthView', icon: '🗓️', title: 'ตารางตำแหน่งรายเดือน', subtitle: 'ดูแผนตำแหน่งรายเดือนที่ประกาศแล้ว', group: 'staff' },
+  { id: 'positions', icon: '🧪', title: 'ตารางตำแหน่งรายวัน', subtitle: 'ดู/ปรับตำแหน่งประจำวันก่อนเริ่มงาน', group: 'staff' },
+  { id: 'ot', icon: '⏱️', title: 'ลงชื่ออยู่เวร / ขอ OT เพิ่ม', subtitle: 'ยืนยันอยู่เวร ขอ OT เพิ่ม และสรุป OT', group: 'staff' },
   { id: 'audit', icon: '🕵️', title: 'Audit Log ล่าสุด', subtitle: 'ประวัติการใช้งานแบบอ่านง่าย กรองรายวันได้', group: 'staff' },
   { id: 'hr', icon: '🧾', title: 'ตรวจสอบ HR', subtitle: 'Admin ตรวจว่าแจ้งใน HR แล้วหรือยัง', group: 'admin' },
   { id: 'hrSummary', icon: '✅', title: 'สรุปตรวจสอบ HR แล้ว', subtitle: 'รายการที่ Admin ตรวจสอบ HR แล้ว ย้อนกลับมาดูได้', group: 'admin' },
-  { id: 'scheduler', icon: '🧩', title: 'จัดตารางเวร', subtitle: 'Auto Assign, Drag & Drop, Lock, Publish', group: 'admin' },
+  { id: 'scheduler', icon: '🧩', title: 'จัดตารางเวร', subtitle: 'สร้างร่าง Auto Assign และบันทึกตาราง', group: 'admin' },
   { id: 'positionMonth', icon: '🗓️', title: 'จัดตำแหน่งรายเดือน', subtitle: 'Admin วาง default ทั้งเดือนก่อนให้อินชาร์จปรับรายวัน', group: 'admin' },
   { id: 'profileRequests', icon: '📝', title: 'คำขอแก้ไขข้อมูลส่วนตัว', subtitle: 'Admin อนุมัติชื่อ/ชื่อเล่น/เบอร์โทร', group: 'admin' },
   { id: 'users', icon: '👥', title: 'ผู้ใช้งานและสิทธิ์', subtitle: 'เพิ่ม/แก้ไขเจ้าหน้าที่ เฉพาะ Admin', group: 'admin' },
@@ -28,7 +28,7 @@ const NAV_GROUPS = [
 const LEAVE_TYPES = ['ลาพักร้อน','ลากิจ','ลาป่วย','ลาคลอด','ไม่รับเวร','อื่นๆ'];
 const ACTIVITY_TYPES = ['ประชุม','อบรม','ออกหน่วย','ตรวจมาตรฐาน','ซ้อม CODE','อื่นๆ'];
 const ACTIVITY_LOCATIONS = ['ห้องบริจาคโลหิต','คลังเลือด','ห้องบริจาคโลหิต/คลังเลือด','ห้องประชุม 3D','ห้องประชุม ER'];
-const OT_REASONS = ['มาช่วยปั่นเลือด','มาช่วยจ่ายเลือด','มาช่วยออกหน่วย','อยู่ต่อเคลียร์งาน','มาช่วยงาน CQI','อื่นๆ'];
+const OT_REASONS = ['เวรปั่นเลือดหลังเวลา (รอเทียบ LIS)','มาช่วยปั่นเลือด','มาช่วยจ่ายเลือด','มาช่วยออกหน่วย','อยู่ต่อเคลียร์งาน','มาช่วยงาน CQI','อื่นๆ'];
 const HR_STATUSES = ['รอตรวจสอบ','ตรวจสอบแล้ว','รอเอกสาร','ยกเลิก'];
 const OT_STATUSES = ['รออนุมัติ','อนุมัติ','ไม่อนุมัติ','ส่งกลับแก้ไข'];
 const DUTY_COLUMNS = ['ชบด1','ชบด2','ชบด3','ช4A','ช4B','ช3A','ช3B','ช9-เคิก','ช9-MT'];
@@ -161,6 +161,11 @@ let state = {
   calendarDate: new Date(),
   calendarView: 'month',
   scheduleMobileView: 'day',
+  tradeFilterStaff: '',
+  hrFilterStaff: '',
+  hrFilterMonth: '',
+  hrSummaryFilterStaff: '',
+  hrSummaryFilterMonth: '',
   monthKey: monthKey(new Date()),
   positionMonthKey: monthKey(new Date()),
   positionMonthViewKey: monthKey(new Date()),
@@ -944,14 +949,15 @@ function dutyRatePerHour(staffId, date, dutyCode='') {
 }
 function dutyHoursForCode(date, dutyCode='') {
   if (['ช9-เคิก','ช9-MT'].includes(dutyCode)) return 8;
-  if (['ช3A','ช3B'].includes(dutyCode)) return 12;
-  if (['ช4A','ช4B'].includes(dutyCode)) return 4;
+  if (['ช3A','ช3B'].includes(dutyCode)) return 8; // อีก 4 ชม. ต้องรอเทียบ LIS ก่อน ไม่คิดอัตโนมัติ
+  if (['ช4A','ช4B'].includes(dutyCode)) return 0; // ช4 ต้องยืนยันเวลาจริงและเทียบ LIS ก่อนคิด OT
   if (['ชบด1','ชบด2','ชบด3'].includes(dutyCode)) return (isWeekend(date) || isHolidayDate(date)) ? 24 : 16;
   return (isWeekend(date) || isHolidayDate(date)) ? 24 : 16;
 }
 function dutyUnitsForCode(date, dutyCode='') {
   const h = dutyHoursForCode(date, dutyCode);
-  if (['ช3A','ช3B'].includes(dutyCode)) return 1.5;
+  if (['ช3A','ช3B'].includes(dutyCode)) return 1;
+  if (['ช4A','ช4B'].includes(dutyCode)) return 0;
   return h / 8;
 }
 function dutyMetrics(a, staffIdOverride=null) {
@@ -1215,7 +1221,7 @@ function renderLeavePage() {
         <div class="section-title"><h3>${editing ? 'แก้ไขรายการ' : 'แจ้งลา / ไม่รับเวร'}</h3>${editing ? '<button class="ghost-btn" data-cancel-edit-leave>ยกเลิกแก้ไข</button>' : ''}</div>
         <form id="leaveForm" class="form-grid">
           ${isAdmin() ? `<label class="wide">บันทึกให้เจ้าหน้าที่ <select name="staff_id" id="leaveStaffSelect" required>${staffOptions(selectedStaff)}</select><span class="hint">Admin เพิ่ม/แก้ไข/ยกเลิกแทน staff ได้ รวมถึงลาย้อนหลัง กรณีเจ้าหน้าที่ไม่สะดวกบันทึกเอง</span></label>` : ''}
-          ${isAdmin() ? `<div class="notice soft-notice wide"><b>โหมด Admin:</b> บันทึกลาย้อนหลัง/บันทึกแทนเจ้าหน้าที่ได้ ระบบจะเก็บ Log และระบุว่า Admin เป็นผู้บันทึกแทน</div>` : ''}
+          
           <label>ประเภท
             <select name="type" required>${LEAVE_TYPES.map(t => `<option ${editing?.type===t?'selected':''}>${t}</option>`).join('')}</select>
           </label>
@@ -1362,48 +1368,56 @@ function hrCheckBadgeForLeave(leaveId) {
 
 function renderHrPage() {
   if (!isAdmin()) return noPermission();
-  const leaveRows = state.leaves.filter(x => x.type !== 'ไม่รับเวร' && x.status !== 'cancelled' && !isLeaveHrChecked(x.id));
+  const staffFilter = state.hrFilterStaff || '';
+  const monthFilter = state.hrFilterMonth || state.monthKey;
+  const leaveRows = state.leaves
+    .filter(x => x.type !== 'ไม่รับเวร' && x.status !== 'cancelled' && !isLeaveHrChecked(x.id))
+    .filter(x => !staffFilter || x.staff_id === staffFilter)
+    .filter(x => !monthFilter || String(x.start_date || '').startsWith(monthFilter) || String(x.end_date || '').startsWith(monthFilter));
   return `<div class="card">
-    <div class="section-title"><h3>ตรวจสอบ HR</h3><span class="muted">แก้ปัญหา “แจ้งเรา แต่ไม่ได้ลาใน HR”</span></div>
+    <div class="section-title"><h3>ตรวจสอบ HR</h3><span class="muted">รายการลาที่ยังไม่ได้ติ๊กว่าแจ้ง HR แล้ว</span></div>
+    <div class="toolbar compact-filter">
+      <label>คน <select id="hrFilterStaff"><option value="">ทุกคน</option>${orderedStaff(state.staff).map(s => `<option value="${s.id}" ${staffFilter===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)}</option>`).join('')}</select></label>
+      <label>เดือน <input type="month" id="hrFilterMonth" value="${monthFilter || ''}"></label>
+    </div>
     ${leaveRows.length ? `<div class="table-wrap"><table><thead><tr><th>ผู้ลา</th><th>ประเภท/วันที่</th><th>สถานะ HR</th><th>บันทึกตรวจสอบ</th></tr></thead><tbody>
       ${leaveRows.map(l => { const h = state.hrChecks.find(x => x.leave_request_id === l.id) || {}; return `<tr>
         <td>${escapeHtml(staffName(l.staff_id))}</td>
-        <td>${badge(l.type, leaveBadgeClass(l.type))}<br>${formatThaiDate(l.start_date)} - ${formatThaiDate(l.end_date)}</td>
-        <td>${badge(h.status || 'รอตรวจสอบ', h.status==='ตรวจสอบแล้ว'?'green':h.status==='รอเอกสาร'?'orange':h.status==='ยกเลิก'?'red':'black')}<br><span class="muted">ผู้ตรวจ: ${escapeHtml(staffNick(h.checked_by))}</span></td>
+        <td>${badge(l.type, leaveBadgeClass(l.type))}<br>${formatThaiDate(l.start_date)} - ${formatThaiDate(l.end_date)}<br><span class="muted">เหตุผล: ${escapeHtml(leaveReasonText(l) || '-')}</span></td>
+        <td>${badge(h.status || 'รอตรวจสอบ', h.status === 'ตรวจสอบแล้ว' ? 'green' : 'orange')}<br><span class="muted">ผู้ตรวจ: ${h.checked_by ? staffNick(h.checked_by) : '-'}</span></td>
         <td><form class="hr-form form-grid" data-leave-id="${l.id}">
-          <label>สถานะ <select name="status">${HR_STATUSES.map(s => `<option ${h.status===s?'selected':''}>${s}</option>`).join('')}</select></label>
+          <label>สถานะ <select name="status">${HR_STATUSES.map(st => `<option ${st===(h.status||'รอตรวจสอบ')?'selected':''}>${st}</option>`).join('')}</select></label>
           <label>วันที่แจ้งใน HR <input type="date" name="hr_reported_date" value="${h.hr_reported_date || ''}"></label>
           <label class="wide">หมายเหตุ <input name="note" value="${escapeHtml(h.note || '')}"></label>
           <button class="primary-btn wide" type="submit">บันทึก</button>
         </form></td>
       </tr>`; }).join('')}
-    </tbody></table></div>` : empty('ไม่มีรายการลาให้ตรวจ')}
+    </tbody></table></div>` : empty('ไม่มีรายการค้างตรวจตามตัวกรองนี้')}
   </div>`;
 }
 
 function renderHrSummaryPage() {
   if (!isAdmin()) return noPermission();
+  const staffFilter = state.hrSummaryFilterStaff || '';
+  const monthFilter = state.hrSummaryFilterMonth || state.monthKey;
   const checkedRows = state.hrChecks
     .filter(h => h.status === 'ตรวจสอบแล้ว')
     .map(h => ({ h, l: state.leaves.find(x => x.id === h.leave_request_id) }))
     .filter(x => x.l)
-    .sort((a,b) => String(b.h.checked_at || '').localeCompare(String(a.h.checked_at || '')));
+    .filter(x => !staffFilter || x.l.staff_id === staffFilter)
+    .filter(x => !monthFilter || String(x.l.start_date || '').startsWith(monthFilter) || String(x.l.end_date || '').startsWith(monthFilter) || String(x.h.hr_reported_date || '').startsWith(monthFilter));
   return `<div class="card">
-    <div class="section-title"><h3>สรุปตรวจสอบ HR แล้ว</h3><span class="muted">เก็บไว้ให้ Admin กลับมาตรวจย้อนหลังได้</span></div>
+    <div class="section-title"><h3>สรุปตรวจสอบ HR แล้ว</h3><span class="muted">ค้นย้อนหลังได้ตามคนหรือเดือน</span></div>
+    <div class="toolbar compact-filter">
+      <label>คน <select id="hrSummaryFilterStaff"><option value="">ทุกคน</option>${orderedStaff(state.staff).map(s => `<option value="${s.id}" ${staffFilter===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)}</option>`).join('')}</select></label>
+      <label>เดือน <input type="month" id="hrSummaryFilterMonth" value="${monthFilter || ''}"></label>
+    </div>
     ${checkedRows.length ? `<div class="table-wrap desktop-table"><table><thead><tr><th>ผู้ลา</th><th>ประเภท/ช่วงวันที่</th><th>วันที่แจ้งใน HR</th><th>ผู้ตรวจ/เวลาตรวจ</th><th>หมายเหตุ</th></tr></thead><tbody>
-      ${checkedRows.map(({h,l}) => `<tr>
-        <td>${escapeHtml(staffName(l.staff_id))}</td>
-        <td>${badge(l.type, leaveBadgeClass(l.type))}<br>${formatThaiDate(l.start_date)} - ${formatThaiDate(l.end_date)}<br><span class="muted">เหตุผล: ${escapeHtml(leaveReasonText(l) || '-')}</span></td>
-        <td>${h.hr_reported_date ? formatThaiDate(h.hr_reported_date) : '-'}</td>
-        <td>${staffPill(h.checked_by)}<br><span class="muted">${formatThaiDateTime(h.checked_at)}</span></td>
-        <td>${escapeHtml(h.note || '-')}</td>
-      </tr>`).join('')}
+      ${checkedRows.map(({h,l}) => `<tr><td>${escapeHtml(staffName(l.staff_id))}</td><td>${badge(l.type, leaveBadgeClass(l.type))}<br>${formatThaiDate(l.start_date)} - ${formatThaiDate(l.end_date)}<br><span class="muted">${escapeHtml(leaveReasonText(l) || '')}</span></td><td>${h.hr_reported_date ? formatThaiDate(h.hr_reported_date) : '-'}</td><td>${staffPill(h.checked_by)}<br><span class="muted">${formatThaiDateTime(h.checked_at)}</span></td><td>${escapeHtml(h.note || '-')}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="mobile-cards">${checkedRows.map(({h,l}) => `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(staffNick(l.staff_id))}</h3>${badge(l.type, leaveBadgeClass(l.type))}</div><div>${formatThaiDate(l.start_date)} - ${formatThaiDate(l.end_date)}</div><div><b>เหตุผล:</b> ${escapeHtml(leaveReasonText(l) || '-')}</div><div><b>แจ้งใน HR:</b> ${h.hr_reported_date ? formatThaiDate(h.hr_reported_date) : '-'}</div><div><b>ผู้ตรวจ:</b> ${staffPill(h.checked_by)}<br><span class="muted">${formatThaiDateTime(h.checked_at)}</span></div><div><b>หมายเหตุ:</b> ${escapeHtml(h.note || '-')}</div></div>`).join('')}</div>` : empty('ยังไม่มีรายการที่ตรวจสอบ HR แล้ว')}
+    <div class="mobile-cards">${checkedRows.map(({h,l}) => `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(staffNick(l.staff_id))}</h3>${badge(l.type, leaveBadgeClass(l.type))}</div><div>${formatThaiDate(l.start_date)} - ${formatThaiDate(l.end_date)}</div><div><b>เหตุผล:</b> ${escapeHtml(leaveReasonText(l) || '-')}</div><div><b>แจ้งใน HR:</b> ${h.hr_reported_date ? formatThaiDate(h.hr_reported_date) : '-'}</div><div><b>ผู้ตรวจ:</b> ${staffPill(h.checked_by)}<br><span class="muted">${formatThaiDateTime(h.checked_at)}</span></div><div><b>หมายเหตุ:</b> ${escapeHtml(h.note || '-')}</div></div>`).join('')}</div>` : empty('ยังไม่มีรายการที่ตรวจสอบ HR แล้วตามตัวกรองนี้')}
   </div>`;
 }
-
-function noPermission() { return `<div class="card">${empty('หน้านี้ Staff มองเห็นเมนูได้ แต่ปุ่มทำงานสำหรับ Admin เท่านั้น')}</div>`; }
 
 function renderSchedulerPage() {
   if (!isAdmin()) return noPermission();
@@ -1416,10 +1430,8 @@ function renderSchedulerPage() {
       <div class="toolbar">
         <label>เดือน <input type="month" id="rosterMonthInput" value="${state.monthKey}"></label>
         <button class="primary-btn" data-generate-roster>สร้างร่าง</button>
-        <button class="soft-btn" data-auto-assign>Auto Assign</button>
-        <button class="ghost-btn" data-save-roster>บันทึกร่าง</button>
-        <button class="ghost-btn" data-publish-roster>ประกาศตาราง</button>
-        <button class="danger-ghost" data-lock-roster>ล็อกตาราง</button>
+        <button class="soft-btn" data-auto-assign>สร้างร่าง Auto Assign</button>
+        <button class="primary-btn" data-save-roster>บันทึก</button>
         <span>${badge(month?.status || 'ยังไม่สร้าง', month?.status==='published'?'green':month?.status==='locked'?'red':'black')}</span>
       </div>
       <form id="holidayForm" class="form-grid compact-form">
@@ -1427,7 +1439,7 @@ function renderSchedulerPage() {
         <label>ชื่อวันหยุด <input name="title" placeholder="เช่น วันเฉลิมฯ" required></label>
         <button class="soft-btn" type="submit">บันทึกวันหยุด</button>
       </form>
-      <div class="hint">วันหยุดราชการจะนับเป็นเวร 24 ชม. และ Auto Assign จะเกลี่ยใหม่โดยไม่แตะช่องที่ล็อกไว้</div>
+      <div class="hint">Auto Assign จะช่วยเกลี่ยเวรตามกติกาและไม่แตะช่องที่ล็อกไว้</div>
       ${monthHolidays.length ? `<div class="chip-line">${monthHolidays.map(h => `<span class="badge yellow">${formatThaiDate(h.holiday_date)} ${escapeHtml(h.title)}</span>`).join('')}</div>` : ''}
     </div>
     <div class="roster-board">
@@ -1435,7 +1447,7 @@ function renderSchedulerPage() {
         <h3>รายชื่อเจ้าหน้าที่</h3>
         <p class="hint">ลากชื่อไปวางในช่องเวรได้เลย / คนที่ปิดจัดเวรจะไม่ถูก Auto Assign</p>
         <div class="staff-pool">
-          ${orderedStaff(state.staff.filter(s => isRosterEnabled(s))).map(s => `<div class="staff-chip" style="--staff-bg:${staffColor(s)};--staff-fg:${textColorFor(staffColor(s))}" draggable="true" data-drag-staff="${s.id}"><span>${escapeHtml(s.nickname || s.full_name)}</span><span>${badge(s.staff_type || '-', s.staff_type==='MT'?'blue':'orange')}</span></div>`).join('')}
+          ${orderedStaff(state.staff.filter(s => isRosterEnabled(s))).map(s => `<div class="staff-chip" style="--staff-bg:${staffColor(s)};--staff-fg:${textColorFor(staffColor(s))}" draggable="true" data-drag-staff="${s.id}" data-staff-stat="${s.id}" title="กดเพื่อดูสถิติเวร"><span>${escapeHtml(s.nickname || s.full_name)}</span><span>${badge(s.staff_type || '-', s.staff_type==='MT'?'blue':'orange')}</span></div>`).join('')}
         </div>
       </div>
       <div class="card">
@@ -1517,7 +1529,7 @@ function showFairness() {
   const pays = Object.values(stats).map(x => x.pay || 0);
   const diff = hours.length ? Math.max(...hours) - Math.min(...hours) : 0;
   const payDiff = pays.length ? Math.max(...pays) - Math.min(...pays) : 0;
-  showModal(`<h2>ตรวจสมดุลการกระจายเวร ${state.monthKey}</h2><p class="hint">คิดตามกติกาจริง: ชบด วันธรรมดา 16 ชม., ชบด เสาร์/อาทิตย์/นักขัต 24 ชม., ช9 8 ชม., ช3A/ช3B 12 ชม., ช4 4 ชม. เรท MT 130/นักขัต 160 บ./ชม. และเคิก 90/นักขัต 120 บ./ชม. ถ้ามีการแลก/ขาย/ยกเวรหลังประกาศ ให้ถือเป็นข้อตกลงระหว่างเจ้าหน้าที่</p><p class="hint">ส่วนต่างชั่วโมง ${diff.toFixed(1)} ชม. • ส่วนต่างเงินโดยประมาณ ${payDiff.toLocaleString()} บาท</p><div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชม.รวม</th><th>เงินประมาณ</th><th>หน่วยเวร</th><th>ชบด</th><th>ช9</th><th>ช3A/B</th><th>ช4</th><th>จันทร์</th><th>ศุกร์</th><th>วันหยุด/นักขัต</th></tr></thead><tbody>
+  showModal(`<h2>ตรวจสมดุลการกระจายเวร ${state.monthKey}</h2><p class="hint">คิดตามเวรตั้งต้น: ชบด วันธรรมดา 16 ชม., ชบด เสาร์/อาทิตย์/นักขัต 24 ชม., ช9 8 ชม., ช3A/ช3B คิดตั้งต้น 8 ชม. ส่วนช4 และชั่วโมงปั่นเลือดเพิ่มให้ยืนยันเวลาแล้วเทียบ LIS ก่อน</p><p class="hint">ส่วนต่างชั่วโมง ${diff.toFixed(1)} ชม. • ส่วนต่างเงินโดยประมาณ ${payDiff.toLocaleString()} บาท</p><div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชม.รวม</th><th>เงินประมาณ</th><th>หน่วยเวร</th><th>ชบด</th><th>ช9</th><th>ช3A/B</th><th>ช4</th><th>จันทร์</th><th>ศุกร์</th><th>วันหยุด/นักขัต</th></tr></thead><tbody>
     ${orderedStaff(state.staff.filter(s=>isRosterEnabled(s))).map(s => { const r = stats[s.id] || {}; return `<tr><td>${staffPill(s)}</td><td>${(r.hours||0).toFixed(1)}</td><td>${(r.pay||0).toLocaleString()}</td><td>${(r.units||0).toFixed(1)}</td><td>${r.chbd||0}</td><td>${r.ch9||0}</td><td>${r.ch3||0}</td><td>${r.ch4||0}</td><td>${r.mon||0}</td><td>${r.fri||0}</td><td>${r.weekend||0}</td></tr>`; }).join('')}
   </tbody></table></div>`);
 }
@@ -1548,10 +1560,11 @@ function calcFairness(assignments) {
 
 function renderTradeRequestsPage() {
   const assignments = getAssignmentsForMonth(state.monthKey);
-  const related = state.tradeRequests.filter(r => isAdmin() || r.requester_id === currentStaffId() || r.receiver_id === currentStaffId());
+  const staffFilter = state.tradeFilterStaff || '';
+  const related = state.tradeRequests;
   const pendingMine = related.filter(r => r.status === 'pending' && r.receiver_id === currentStaffId()).length;
   const waitingAdmin = related.filter(r => r.status === 'confirmed').length;
-  return `<div class="card"><div class="toolbar"><label>เดือน <input type="month" id="scheduleMonthInput" value="${state.monthKey}"></label>${badge(`รอฉันยืนยัน ${pendingMine}`, pendingMine ? 'orange' : 'black')}${badge(`รอ Admin ${waitingAdmin}`, waitingAdmin ? 'blue' : 'black')}</div><div class="notice soft-notice">คำขอแลก/ขาย/ยกเวรจะแสดงที่นี่ เพื่อให้อีกฝ่ายกดยืนยัน และให้ Admin บันทึกเปลี่ยนตารางจริงหลังตกลงกันแล้ว</div>${renderDutyTradePanel(assignments)}</div>`;
+  return `<div class="card"><div class="toolbar compact-filter"><label>เดือน <input type="month" id="scheduleMonthInput" value="${state.monthKey}"></label><label>คน <select id="tradeFilterStaff"><option value="">ทุกคน</option>${orderedStaff(state.staff).map(s => `<option value="${s.id}" ${staffFilter===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)}</option>`).join('')}</select></label>${badge(`รอฉันยืนยัน ${pendingMine}`, pendingMine ? 'orange' : 'black')}${badge(`รอ Admin ${waitingAdmin}`, waitingAdmin ? 'blue' : 'black')}</div><div class="notice soft-notice">ทุกคนเห็นคำขอของทุกคนได้ ใช้ตัวกรองเพื่อดูเฉพาะคนหรือเดือนที่ต้องการ</div>${renderDutyTradePanel(assignments)}</div>`;
 }
 
 function renderMonthlySchedulePage() {
@@ -1595,7 +1608,8 @@ function renderDutyTradePanel(assignments) {
     const a = assignments.find(x => x.id === r.from_assignment_id || x.id === r.to_assignment_id);
     return a || String(r.created_at || '').startsWith(state.monthKey);
   });
-  const visible = isAdmin() ? monthRows : monthRows.filter(r => r.requester_id === currentStaffId() || r.receiver_id === currentStaffId());
+  const staffFilter = state.tradeFilterStaff || '';
+  const visible = monthRows.filter(r => !staffFilter || r.requester_id === staffFilter || r.receiver_id === staffFilter);
   if (!visible.length) return `<div class="trade-panel"><h3>คำขอแลก/ขาย/ยกเวร</h3>${empty('ยังไม่มีคำขอแลก/ขาย/ยกเวรในเดือนนี้')}</div>`;
   return `<div class="trade-panel"><h3>คำขอแลก/ขาย/ยกเวร</h3><div class="table-wrap desktop-table"><table><thead><tr><th>ผู้ขอ</th><th>ผู้รับ/คู่แลก</th><th>รายการ</th><th>เงินโดยประมาณ</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${visible.map(r => renderTradeRow(r, assignments)).join('')}</tbody></table></div>${renderTradeCards(visible, assignments)}</div>`;
 }
@@ -1678,8 +1692,10 @@ function renderSchedulePersonMatrix(assignments) {
 function showStaffStats(staffId) {
   const assignments = getAssignmentsForMonth(state.monthKey).filter(x => x.staff_id === staffId);
   const s = calcFairness(assignments)[staffId] || {};
-  showModal(`<h2>${staffPill(staffId)}</h2><div class="grid grid-2">${statCard('เวรรวม', s.total||0)}${statCard('ชม.รวม', (s.hours||0).toFixed(1))}${statCard('เงินประมาณ', (s.pay||0).toLocaleString())}${statCard('วันหยุด', s.weekend||0)}${statCard('จันทร์', s.mon||0)}${statCard('ศุกร์', s.fri||0)}</div>`);
+  const detail = assignments.slice().sort((a,b)=>String(a.duty_date).localeCompare(String(b.duty_date))).map(a => `<tr><td>${formatThaiDate(a.duty_date)}</td><td>${escapeHtml(DUTY_LABEL[a.duty_code] || a.duty_code)}</td><td>${dutyMetrics(a).hours.toFixed(0)} ชม.</td></tr>`).join('');
+  showModal(`<h2>${staffPill(staffId)}</h2><div class="grid grid-2 modal-stat-grid">${statCard('เวรรวม', s.total||0)}${statCard('ชม.รวม', (s.hours||0).toFixed(1))}${statCard('เงินประมาณ', (s.pay||0).toLocaleString())}${statCard('วันหยุด', s.weekend||0)}${statCard('ชบด', s.chbd||0)}${statCard('ช9', s.ch9||0)}${statCard('ช3A/ช3B', s.ch3||0)}${statCard('ช4', s.ch4||0)}</div><div class="compact-detail-table"><table><thead><tr><th>วันที่</th><th>เวร</th><th>ชม.ตั้งต้น</th></tr></thead><tbody>${detail || '<tr><td colspan="3">ยังไม่มีเวรในเดือนนี้</td></tr>'}</tbody></table></div>`);
 }
+
 
 function renderPositionsPage() {
   const date = state.positionDate || todayStr();
@@ -1702,7 +1718,7 @@ function renderPositionsPage() {
       ${badge(isPublished ? 'ประกาศแล้ว' : 'ยังไม่ประกาศ', isPublished ? 'green' : 'orange')}
       ${canManage && !noPosition ? '<button class="soft-btn" data-auto-positions>จัดตำแหน่งอัตโนมัติ</button><button class="primary-btn" data-save-positions>บันทึกตำแหน่งวันนี้</button><button class="soft-btn" data-publish-positions>ประกาศตารางวันนี้</button>' : ''}
     </div>
-    <div class="notice soft-notice">ตารางรายวันมาจาก default รายเดือนก่อน อินชาร์จปรับได้ตามคนลา/งานจริง แล้วกดประกาศก่อน 07:30 น. หากมีคนลาหลังประกาศ ให้แจ้งอินชาร์จหรือหัวหน้าเพื่อปรับหน้างาน</div>
+    <div class="notice soft-notice">อินชาร์จตรวจตำแหน่งของวันนี้ ปรับตามคนลา/งานจริง แล้วกดประกาศก่อนเริ่มงาน หากมีคนลาหลังประกาศให้แจ้งอินชาร์จหรือหัวหน้าเพื่อปรับหน้างาน</div>
     ${noPosition ? `<div class="notice">วันนี้เป็น${isHolidayDate(date) ? 'วันหยุดราชการ' : 'วันเสาร์-อาทิตย์'} จึงไม่ต้องจัดตำแหน่งรายวัน</div>` : ''}
     ${!noPosition && hasOuting(date) ? `<div class="notice">วันนี้มีออกหน่วย: คนที่ถูกติ๊กในกิจกรรมจะถูกจัดลงชุดออกหน่วย ส่วนคนที่เหลือจะถูกเกลี่ยไปตำแหน่งห้อง Blood Bank</div>` : ''}
     ${noPosition ? empty('ไม่มีตารางตำแหน่งรายวันสำหรับวันนี้') : renderDailyPositionList(rows, date, canManage)}
@@ -1743,8 +1759,6 @@ function renderPositionMonthPage() {
       <span>${badge(`มีข้อมูล ${savedCount} รายการ`, savedCount ? 'green' : 'black')}</span>
       <span>${badge(`วันทำงาน ${workingDays} วัน`, 'blue')}</span>
     </div>
-    <div class="notice soft-notice">หลักการ: เสาร์-อาทิตย์และวันหยุดราชการขึ้น WEEKEND/HOLIDAY และไม่จัดตำแหน่ง วันที่มีออกหน่วยจะจัดผู้เข้าร่วมกิจกรรมลงชุดออกหน่วย ส่วนคนที่เหลือจะถูกเกลี่ยให้อยู่ตำแหน่งห้อง Blood Bank</div>
-    <div class="notice soft-notice">BB-Report และ DR-Processing จะพยายามฟิคเป็นรายสัปดาห์เพื่อเก็บ QC ต่อเนื่อง ถ้าเกลี่ยแล้วคนนั้นยังไม่มีตำแหน่ง ระบบจะแสดง “รอตรวจสอบ” ให้ Admin ปรับเอง ไม่ใส่ตำแหน่งเสริมปลอม</div>
     ${renderMonthPositionSummaryHint(rows, dates)}${renderMonthPositionMatrix(rows, dates)}
   </div>`;
 }
@@ -1757,13 +1771,12 @@ function renderPositionMonthViewPage() {
   const rows = state.positions.filter(x => x.work_date?.startsWith(key));
   const savedCount = rows.length;
   return `<div class="card monthly-position-page readonly-month-position-page">
-    <div class="section-title"><div><h3>ตารางตำแหน่งรายเดือน ${key}</h3><p class="hint">ดู default รายเดือนแบบเดียวกับหน้าจัดตำแหน่งของ Admin แต่หน้านี้เป็นโหมดอ่านอย่างเดียว</p></div></div>
+    <div class="section-title"><div><h3>ตารางตำแหน่งรายเดือน ${key}</h3><p class="hint">ดูแผนตำแหน่งรายเดือนที่ประกาศไว้</p></div></div>
     <div class="toolbar">
       <label>เดือน <input type="month" id="positionMonthViewInput" value="${key}"></label>
       <span>${badge(`ข้อมูล ${savedCount} รายการ`, savedCount ? 'green' : 'black')}</span>
       <span>${badge('อ่านอย่างเดียว', 'blue')}</span>
     </div>
-    <div class="notice soft-notice">หน้านี้ให้ทุกคนเห็นแผนรายเดือนเหมือนตารางที่ Admin จัดไว้ แต่แก้ไขไม่ได้ หากมีเปลี่ยนจริงตอนเช้า ให้ดูเมนูตารางตำแหน่งรายวันหลังอินชาร์จประกาศ</div>
     ${renderMonthPositionSummaryHint(rows, dates)}${renderMonthPositionMatrix(rows, dates)}
   </div>`;
 }
@@ -1771,9 +1784,8 @@ function renderMonthPositionSummaryHint(rows, dates) {
   if (!rows.length) return '';
   const stats = buildMonthPositionSummary(rows, dates);
   const staffCount = Object.keys(stats).length;
-  return `<div class="month-position-summary-hint card-lite">
-    <b>สรุปรายคนถูกย้ายไปอยู่ใน Pop-up แล้ว</b>
-    <span class="hint">กดชื่อเจ้าหน้าที่ด้านซ้ายของตาราง เพื่อดูว่าเดือนนี้อยู่โซนไหนกี่วัน และขึ้นตำแหน่งอะไรบ้าง ระบบจะคำนวณจากตารางล่าสุด และไม่นับวันที่คนนั้นลา/ไม่รับเวร หรือวันที่ไม่มีการจัดตำแหน่ง</span>
+  return `<div class="month-position-summary-hint compact-summary">
+    <span class="hint">กดชื่อเจ้าหน้าที่ในคอลัมน์ซ้ายเพื่อดูสรุปรายคน</span>
     <span>${badge(`มีสรุป ${staffCount} คน`, staffCount ? 'blue' : 'black')}</span>
   </div>`;
 }
@@ -1998,22 +2010,21 @@ function renderOtPage() {
   const myDuty = state.rosterAssignments.some(x => x.duty_date === todayStr() && x.staff_id === currentStaffId());
   const mine = state.otRequests.filter(x => x.staff_id === currentStaffId());
   const rows = isAdmin() ? state.otRequests : mine;
-  const geo = CFG.GEOFENCE || {};
   return `<div class="grid grid-2 ot-page">
     <div class="card ot-card">
       <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
-      <p class="muted">${myDuty ? 'วันนี้มีชื่อคุณในตารางเวร กดยืนยันวันอยู่เวรได้' : 'วันนี้ยังไม่พบชื่อคุณในตารางเวร ถ้าต้องลงจริงให้ Admin ตรวจตารางก่อน'}</p>
+      <p class="muted">${myDuty ? 'วันนี้มีชื่อคุณในตารางเวร' : 'วันนี้ยังไม่พบชื่อคุณในตารางเวร ถ้าลงจริงให้ Admin ตรวจตารางก่อน'}</p>
       <button class="primary-btn" data-check-in ${(!myDuty && !isAdmin()) ? 'disabled' : ''}>ยืนยันวันอยู่เวร</button>
-      <div class="notice soft-notice gps-help"><b>การตั้งค่า GPS:</b> ใน config.js ตั้งพิกัด CNMI เป็น lat 13.52646, lng 100.76085 และเปิด GEOFENCE.enabled = true เมื่อใช้งานจริง</div>
-      <p class="hint">ค่าปัจจุบัน: ${geo.enabled ? `เปิดใช้ GPS (${geo.lat || '-'}, ${geo.lng || '-'}) รัศมี ${geo.radiusMeters || 500} ม.` : 'ยังไม่บังคับพื้นที่ GPS'}<br>ถ้า iPhone ขึ้น User denied Geolocation ให้เข้า Safari > Website Settings > Location > Allow หรือเปิด Location Services ใน Settings</p>
+      <p class="hint gps-help compact">ใช้ GPS ตามพิกัดใน config.js หากเครื่องไม่ให้สิทธิ์ Location ให้กด Allow ในเบราว์เซอร์ก่อน</p>
     </div>
     <div class="card ot-card">
-      <h3>ส่วนที่ 2 ยืนยันขอ OT เพิ่ม</h3>
+      <h3>ส่วนที่ 2 ขอ OT เพิ่ม / เวรปั่นเลือด</h3>
+      <p class="hint compact">ช4 และชั่วโมงเพิ่มของ ช3A/ช3B จะยังไม่คิดอัตโนมัติ ให้บันทึกเวลาจริง แล้ว Admin เทียบ LIS ก่อนอนุมัติ</p>
       <form id="otForm" class="form-grid">
         <label>วันที่ <input name="work_date" type="date" value="${todayStr()}" required></label>
         <label>เวลาสิ้นสุด <input name="end_time" type="time" required></label>
         <label>เหตุผล <select name="reason">${OT_REASONS.map(r => `<option>${r}</option>`).join('')}</select></label>
-        <label>หมายเหตุ <input name="note"></label>
+        <label>รายละเอียด <input name="note" placeholder="เช่น ปั่นเลือดถึง 18:20 / รอเทียบ LIS"></label>
         <button class="primary-btn wide" type="submit">ยืนยันขอ OT เพิ่ม</button>
       </form>
     </div>
@@ -2022,7 +2033,7 @@ function renderOtPage() {
       ${renderOtTable(rows)}
     </div>
     <div class="card" style="grid-column:1/-1;">
-      <h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">ส่วนนี้เป็น OT ขอเพิ่มตาม Check-Out จริง ส่วนตารางเวรประจำเดือนใช้กติกาเงิน/ชั่วโมงของเวรตั้งต้นและคำขอแลก/ขาย/ยกเวรแยกต่างหาก</p>${renderOtSummary()}
+      <h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">สรุปเฉพาะรายการที่อนุมัติแล้ว</p>${renderOtSummary()}
     </div>
   </div>`;
 }
@@ -2180,7 +2191,7 @@ async function handleSubmit(e) {
   if (e.target.id === 'holidayForm') { e.preventDefault(); await saveHoliday(e.target); }
 }
 async function handleClick(e) {
-  const t = e.target.closest('button, [data-day-detail]');
+  const t = e.target.closest('button, [data-day-detail], [data-staff-stat]');
   if (!t) return;
   if (t.dataset.page) { state.page = t.dataset.page; $('sidebar').classList.remove('open'); document.body.classList.remove('sidebar-open'); renderPage(); return; }
   if (t.dataset.calView) { state.calendarView = t.dataset.calView; renderPage(); return; }
@@ -2236,6 +2247,11 @@ function handleChange(e) {
   if (e.target.id === 'eligibilityStaffSelect') { state.eligibilityStaffId = e.target.value; renderPage(); }
   if (e.target.id === 'positionMonthInput') { state.positionMonthKey = e.target.value; state.monthPositionDraft = null; renderPage(); }
   if (e.target.id === 'positionMonthViewInput') { state.positionMonthViewKey = e.target.value; renderPage(); }
+  if (e.target.id === 'tradeFilterStaff') { state.tradeFilterStaff = e.target.value; renderPage(); }
+  if (e.target.id === 'hrFilterStaff') { state.hrFilterStaff = e.target.value; renderPage(); }
+  if (e.target.id === 'hrFilterMonth') { state.hrFilterMonth = e.target.value; renderPage(); }
+  if (e.target.id === 'hrSummaryFilterStaff') { state.hrSummaryFilterStaff = e.target.value; renderPage(); }
+  if (e.target.id === 'hrSummaryFilterMonth') { state.hrSummaryFilterMonth = e.target.value; renderPage(); }
   if (e.target.id === 'leaveStaffSelect') { const inp = document.getElementById('leaveContactPhone'); if (inp && !state.editingLeaveId) inp.value = staffPhone(e.target.value) || ''; }
   if (e.target.id === 'tradeTypeSelect') { updateTradeSwapVisibility(); }
   if (e.target.id === 'tradeReceiverSelect') {
@@ -2854,7 +2870,7 @@ function showTradeModal(assignmentId) {
       <label class="wide trade-swap-only" id="tradeSwapWrap" style="display:none">กรณีแลกเวรเท่านั้น: เลือกเวรของคู่แลก <select name="to_assignment_id" id="tradeSwapSelect"><option value="">เลือกเวรของคู่แลก</option>${otherDutyOptions}</select><span class="hint">ถ้าเป็นขายเวร/ยกเวร ไม่ต้องเลือกวันที่/เวรซ้ำ ระบบใช้เวรที่กดมาให้อัตโนมัติ</span></label>
       <label id="tradeRateWrap">คิดเรท <select name="rate_mode"><option value="mt">เรท MT</option><option value="kerk">เรทเคิก</option><option value="custom">ตกลงกันเอง / จ่ายกันเอง</option></select><span class="hint">ขายเวร = ใช้เรท MT/เคิก เพื่อเบิก OT หรือเลือกตกลงกันเองถ้าน้องจ่ายกันเอง</span></label>
       <label id="tradeCustomWrap">จำนวนเงินตกลงเอง (ถ้ามี) <input name="custom_amount" type="number" min="0" step="1" placeholder="ไม่บังคับ"></label>
-      <label class="wide">หมายเหตุ <textarea name="note" placeholder="เช่น ขายเป็นเรทเคิก / ยกเวรให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว"></textarea></label>
+      <label class="wide">รายละเอียดข้อตกลง <textarea name="note" placeholder="เช่น เบิกผ่าน HR / ยกให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว"></textarea></label>
       <button class="primary-btn wide" type="submit">ส่งคำขอให้อีกฝ่ายยืนยัน</button>
     </form>`);
   updateTradeSwapVisibility();

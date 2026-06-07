@@ -614,3 +614,39 @@ body.modal-open { overflow: hidden; }
   .ot-summary-card b { grid-column:1/-1; font-size:18px; }
   .schedule-page-card { padding:14px; }
 }
+
+/* V43: wording cleanup + compact filter/profile layout */
+.compact-filter { margin-bottom: 12px; }
+.compact-filter label { min-width: 210px; }
+.hint.compact { line-height: 1.45; margin-top: 6px; }
+.compact-summary {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfdff;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+#myProfilePage .card > div:not(.section-title),
+.profile-info-row {
+  line-height: 1.65;
+}
+#myProfilePage .card b { margin-right: 4px; }
+.staff-chip[data-staff-stat] { cursor: pointer; }
+.trade-panel .notice { margin-top: 8px; }
+@media (max-width: 820px) {
+  .compact-filter { display: grid; grid-template-columns: 1fr; }
+  .compact-filter label { min-width: 0; width: 100%; }
+  .compact-summary { align-items: flex-start; }
+  .gps-help.compact { font-size: 13px; }
+}
+.profile-info-grid { display:grid; gap:10px; margin: 8px 0 18px; }
+.profile-info-grid > div { display:grid; grid-template-columns: 110px minmax(0,1fr); gap:12px; align-items:baseline; padding:7px 0; border-bottom:1px solid rgba(120,145,170,.18); }
+.profile-info-grid b { word-break: break-word; }
+@media (max-width: 560px) {
+  .profile-info-grid > div { grid-template-columns: 1fr; gap:2px; }
+}
