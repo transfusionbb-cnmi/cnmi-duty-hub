@@ -3898,7 +3898,7 @@ function bindGlobalEvents() {
       NAV_ITEMS.splice(idx >= 0 ? idx + 1 : NAV_ITEMS.length, 0, { id:'profileRequestSummary', icon:'📄', title:'สรุปคำขอแก้ไขข้อมูลส่วนตัว', subtitle:'รายการที่อนุมัติ/ไม่อนุมัติแล้ว', group:'admin' });
     }
   }
-  ensureProfileSummaryNav();
+  // ensureProfileSummaryNav(); // disabled: use patch-v58 profileRequestsSummary only to prevent duplicate admin menu
 
   window.renderPage = function renderPageV57() {
     const item = NAV_ITEMS.find(x => x.id === state.page) || NAV_ITEMS[0];
