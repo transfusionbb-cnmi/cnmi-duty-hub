@@ -1,4 +1,4 @@
-/* CNMI Staff Planner V43 - UI text cleanup, trade filters, roster/position summaries */
+/* CNMI Staff Planner V45 - recovery username setup + flexible password */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'ภาพรวมวันนี้', subtitle: 'สรุปภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -550,21 +550,36 @@ function bindGlobalEvents() {
 
   $('resetPasswordForm').addEventListener('submit', async e => {
     e.preventDefault();
+    const loginName = String($('recoveryLoginName')?.value || '').trim();
     const password = $('newPassword').value;
-    if (password.length < 8) return showToast('รหัสผ่านต้องอย่างน้อย 8 ตัวอักษร');
-    // Consume recovery mode before updateUser emits USER_UPDATED, otherwise this tab may keep showing the reset form.
-    RECOVERY_INTENT = false;
-    if (window.history?.replaceState) window.history.replaceState({}, document.title, authRedirectUrl());
-    const { error } = await sb.auth.updateUser({ password });
-    if (error) {
+    if (!loginName) return showToast('กรุณาตั้งชื่อผู้ใช้');
+    if (!/^[a-zA-Z0-9._-]+$/.test(loginName)) return showToast('ชื่อผู้ใช้ใช้ได้เฉพาะอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง');
+    if (!password) return showToast('กรุณากรอกรหัสผ่านใหม่');
+
+    const { data: beforeUpdate } = await sb.auth.getSession();
+    const recoveryEmail = beforeUpdate?.session?.user?.email || state.session?.user?.email || '';
+    if (!recoveryEmail) return showToast('ลิงก์หมดอายุหรือไม่สมบูรณ์ กรุณาขอลิงก์ตั้งรหัสผ่านใหม่อีกครั้ง');
+
+    setBusy(true, 'กำลังบันทึกชื่อผู้ใช้และรหัสผ่าน');
+    try {
+      const r = await sb.rpc('set_initial_login_name_v44', { p_email: recoveryEmail, p_login_name: loginName });
+      if (r.error) throw r.error;
+      // Consume recovery mode before updateUser emits USER_UPDATED, otherwise this tab may keep showing the reset form.
+      RECOVERY_INTENT = false;
+      if (window.history?.replaceState) window.history.replaceState({}, document.title, authRedirectUrl());
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) throw error;
+      $('resetPasswordForm').classList.add('hidden');
+      const { data } = await sb.auth.getSession();
+      state.session = data.session;
+      showToast('บันทึกชื่อผู้ใช้และรหัสผ่านแล้ว');
+      await enterApp();
+    } catch (err) {
       RECOVERY_INTENT = true;
-      return showToast(error.message);
+      showToast(err.message || 'บันทึกไม่สำเร็จ');
+    } finally {
+      setBusy(false);
     }
-    $('resetPasswordForm').classList.add('hidden');
-    const { data } = await sb.auth.getSession();
-    state.session = data.session;
-    showToast('เปลี่ยนรหัสผ่านแล้ว');
-    await enterApp();
   });
 
   document.body.addEventListener('click', handleClick);
@@ -592,6 +607,7 @@ function showResetPasswordPanel() {
   $('resetPasswordForm').classList.remove('hidden');
   $('resetPasswordForm').classList.add('active');
   $('authView').classList.remove('hidden');
+  if ($('recoveryLoginName')) $('recoveryLoginName').value = '';
   if ($('newPassword')) $('newPassword').value = '';
 }
 
@@ -1258,9 +1274,9 @@ function renderLeaveTable(rows) {
 }
 function canEditOwn(row) {
   if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return true;
-  return row.staff_id === currentStaffId() && row.status !== 'cancelled' && !isRosterLockedForDate(row.start_date);
+  return row.staff_id === currentStaffId() && row.status !== 'cancelled' && !isBackdatedForStaff(row.start_date) && (row.type !== 'ไม่รับเวร' || !isNoDutyLockedForDate(row.start_date));
 }
-function isRosterLockedForDate(date) {
+function isNoDutyLockedForDate(date) {
   if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return false;
   const d = parseDate(date);
   const now = new Date();
@@ -1269,6 +1285,12 @@ function isRosterLockedForDate(date) {
   const closeDay = Number(CFG.CURRENT_MONTH_CLOSE_DAY || CFG.ROSTER_CLOSE_DAY || 5);
   const close = new Date(d.getFullYear(), d.getMonth(), closeDay, 23, 59, 59);
   return now > close;
+}
+function isRosterLockedForDate(date) { return isNoDutyLockedForDate(date); }
+function isBackdatedForStaff(date) {
+  const d = parseDate(date);
+  const today = parseDate(todayStr());
+  return d < today;
 }
 
 
@@ -1283,7 +1305,7 @@ function renderMyProfilePage() {
         <div><span class="muted">ชื่อ-สกุล</span><b>${escapeHtml(p.full_name || '-')}</b></div>
         <div><span class="muted">เบอร์โทร</span><b>${escapeHtml(p.phone || '-')}</b></div>
         <div><span class="muted">Email</span><b>${escapeHtml(p.email || '-')}</b></div>
-        <div><span class="muted">ชื่อผู้ใช้</span><b>${escapeHtml(p.login_name || p.nickname || '-')}</b></div>
+        <div><span class="muted">ชื่อผู้ใช้</span><b>${escapeHtml(p.login_name || '-')}</b></div>
       </div>
       <form id="profileChangeForm" class="form-grid compact-form">
         <label>ต้องการแก้ไข <select name="field_name" required><option value="phone">เบอร์โทร</option><option value="login_name">ชื่อผู้ใช้</option><option value="nickname">ชื่อเล่น</option><option value="full_name">ชื่อ-สกุล</option></select></label>
@@ -1878,6 +1900,12 @@ function renderMonthPositionCell(staff, date, codes) {
   const outingMark = outing && cleanCodes.length ? '<div class="cell-note">ออกหน่วย</div>' : '';
   return `<td class="matrix-cell ${cls}"><span>${text}</span>${leaveMark}${outingMark}</td>`;
 }
+function rebalanceMonthPositionDraft() {
+  if (!state.monthPositionDraft?.rows) return;
+  // เวอร์ชันนี้ยังไม่สลับตำแหน่งที่ Admin แก้เองทิ้ง แต่จะเติม/คงสถานะ “รอตรวจสอบ” เพื่อให้ Admin เห็นช่องที่ยังไม่สมดุลชัดเจน
+  // รอบถัดไปสามารถต่อยอดเป็น swap อัตโนมัติได้โดยไม่กระทบข้อมูลเดิม
+}
+
 function workingPositionStaffIdsForDate(date) {
   return orderedStaff(state.staff)
     .filter(s => isDailyPositionEnabled(s) && !isActiveLeaveOn(s.id, date))
@@ -2091,7 +2119,7 @@ function renderUsersPage() {
         <label>ชื่อเล่น <input name="nickname" required></label>
         <label>ชื่อ-สกุล <input name="full_name" required></label>
         <label>Email Mahidol <input name="email" placeholder="name@mahidol.ac.th" required></label>
-        <label>ชื่อผู้ใช้ <input name="login_name" placeholder="เช่น user / gift / ball"></label>
+        <label>ชื่อผู้ใช้ <input name="login_name" placeholder="เว้นว่างไว้ ให้เจ้าหน้าที่มาตั้งเอง"></label>
         <label>รหัสพนักงาน <input name="employee_code"></label>
         <label>ประเภท <select name="staff_type"><option>MT</option><option>เคิก</option><option>แพทย์</option></select></label>
         <label>ตำแหน่ง <input name="position" value="MT"></label>
@@ -2309,8 +2337,11 @@ async function saveLeave(form) {
   }
   if (row.end_date < row.start_date) return showToast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม');
   const requestedDates = datesBetween(row.start_date, row.end_date);
-  if (!isAdmin() && requestedDates.some(isRosterLockedForDate)) {
-    return showToast('พ้นกำหนดแก้ไขรายการลา/ไม่รับเวรของเดือนนี้แล้ว กรุณาแจ้งอินชาร์จหรือหัวหน้าให้บันทึกแทน');
+  if (!isAdmin()) {
+    if (row.start_date < todayStr()) return showToast('Staff ไม่สามารถบันทึกย้อนหลังได้ กรุณาให้ Admin บันทึกแทน');
+    if (row.type === 'ไม่รับเวร' && requestedDates.some(isNoDutyLockedForDate)) {
+      return showToast('พ้นกำหนดแก้ไข “ไม่รับเวร” ของเดือนนี้แล้ว กรุณาแจ้งอินชาร์จหรือหัวหน้าให้บันทึกแทน');
+    }
   }
   const hasPublishedDay = requestedDates.some(positionDayPublished);
   if (hasPublishedDay && !isAdmin()) {
@@ -2448,6 +2479,7 @@ function handleDrop(e) {
 
   const scrollSnapshot = captureRosterScroll(slot);
   updateDraftSlot(slot.dataset.dropSlot, { staff_id: staffId });
+  rebalanceRosterAfterManualChange(slot.dataset.dropSlot);
   renderPage();
   restoreRosterScroll(scrollSnapshot);
 }
@@ -2480,6 +2512,35 @@ function updateDraftSlot(id, patch) {
   const slot = state.rosterDraft.assignments.find(x => (x.id || x._temp_id) === id);
   if (slot) Object.assign(slot, patch);
 }
+function rebalanceRosterAfterManualChange(changedSlotId) {
+  if (!state.rosterDraft || state.rosterDraft.monthKey !== state.monthKey) return;
+  const assignments = state.rosterDraft.assignments || [];
+  const changed = assignments.find(x => (x.id || x._temp_id) === changedSlotId);
+  if (!changed?.staff_id) return;
+  // ปรับสมดุลแบบไม่ลบสิ่งที่ Admin เพิ่งวาง: ดูช่องว่าง/ช่องที่ยังไม่ล็อก แล้วเติมคนที่ภาระรวมต่ำก่อน
+  const counts = calcFairness(assignments.filter(x => x.staff_id));
+  assignments.forEach(slot => {
+    if (slot.is_locked || slot.staff_id) return;
+    const candidates = state.staff
+      .filter(s => isRosterEnabled(s) && supportsRequiredRole(s, slot.required_role))
+      .filter(s => !state.leaves.some(l => l.staff_id === s.id && overlapsDate(l, slot.duty_date)))
+      .filter(s => !hasSameDayDuty(s.id, slot.duty_date, assignments, slot))
+      .filter(s => !hasAdjacentDuty(s.id, slot.duty_date, assignments, slot));
+    candidates.sort((a,b) => {
+      const ca = counts[a.id] || { total:0, hours:0, pay:0, weekend:0 };
+      const cb = counts[b.id] || { total:0, hours:0, pay:0, weekend:0 };
+      return ((ca.pay||0)-(cb.pay||0)) || ((ca.hours||0)-(cb.hours||0)) || ((ca.weekend||0)-(cb.weekend||0)) || ((ca.total||0)-(cb.total||0)) || compareStaffOrder(a,b);
+    });
+    if (candidates[0]) {
+      slot.staff_id = candidates[0].id;
+      const dm = dutyMetrics(slot, candidates[0].id);
+      const c = counts[candidates[0].id] = counts[candidates[0].id] || { total:0, hours:0, pay:0, weekend:0 };
+      c.total++; c.hours = (c.hours||0)+dm.hours; c.pay = (c.pay||0)+dm.pay;
+      if (isWeekend(slot.duty_date) || isHolidayDate(slot.duty_date)) c.weekend = (c.weekend||0)+1;
+    }
+  });
+}
+
 function autoAssignRoster() {
   if (!state.rosterDraft || state.rosterDraft.monthKey !== state.monthKey) state.rosterDraft = { monthKey: state.monthKey, assignments: generateEmptyAssignments(state.monthKey) };
   const assignments = state.rosterDraft.assignments;
@@ -2744,11 +2805,14 @@ async function saveProfileChangeRequest(form) {
   if (String(oldValue) === newValue) return showToast('ข้อมูลใหม่เหมือนข้อมูลเดิม');
   const row = { staff_id: currentStaffId(), requested_by: currentStaffId(), field_name: field, old_value: oldValue || null, new_value: newValue, note: fd.get('note') || null, status: 'pending' };
   setBusy(true, 'กำลังส่งคำขอ');
-  const { error } = await sb.from('profile_change_requests').insert(row);
+  const { data, error } = await sb.from('profile_change_requests').insert(row).select('*').single();
   setBusy(false);
   if (error) return showToast(friendlyDbError(error));
+  if (data) state.profileChangeRequests = [data, ...(state.profileChangeRequests || [])];
   form.reset();
-  await loadAllData(); renderPage(); showToast('ส่งคำขอให้ Admin แล้ว');
+  await loadAllData();
+  if (!state.profileChangeRequests.some(r => r.id === data?.id) && data) state.profileChangeRequests.unshift(data);
+  renderPage(); showToast('ส่งคำขอให้ Admin แล้ว');
 }
 async function reviewProfileChangeRequest(id, status) {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');

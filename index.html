@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=39" />
+  <link rel="stylesheet" href="style.css?v=45" />
 </head>
 <body>
   <div id="setupWarning" class="setup-warning hidden">
@@ -41,15 +41,19 @@
         <label>อีเมล Mahidol
           <input id="setupPasswordEmail" type="email" placeholder="name@mahidol.ac.th" autocomplete="username" required>
         </label>
-        <button class="primary-btn full-btn" type="submit">ส่งลิงก์ให้ตั้งรหัสผ่านใหม่</button>
-        <p class="hint">ระบบจะส่งลิงก์เฉพาะอีเมลที่อยู่ในรายชื่อ staff_profiles และเปิดใช้งานแล้วเท่านั้น</p>
+        <button class="primary-btn full-btn" type="submit">ส่งลิงก์ตั้งรหัสผ่าน</button>
+        <p class="hint">ระบบจะส่งลิงก์เฉพาะอีเมลที่อยู่ในรายชื่อเจ้าหน้าที่และเปิดใช้งานแล้วเท่านั้น</p>
       </form>
 
       <form id="resetPasswordForm" class="auth-panel reset-panel hidden">
-        <label>รหัสผ่านใหม่
-          <input id="newPassword" type="password" placeholder="รหัสผ่านใหม่" minlength="8">
+        <label>ตั้งชื่อผู้ใช้
+          <input id="recoveryLoginName" type="text" placeholder="เช่น user หรือ gift123 หรือ 012345" autocomplete="username" required>
         </label>
-        <button class="primary-btn full-btn" type="submit">บันทึกรหัสผ่านใหม่</button>
+        <label>รหัสผ่านใหม่
+          <input id="newPassword" type="password" placeholder="รหัสผ่านใหม่" autocomplete="new-password" required>
+        </label>
+        <button class="primary-btn full-btn" type="submit">บันทึกชื่อผู้ใช้และรหัสผ่านใหม่</button>
+        <p class="hint">ชื่อผู้ใช้ใช้ตัวอักษรอังกฤษหรือตัวเลขได้ เช่น user, gift123, 012345</p>
       </form>
     </div>
   </section>
@@ -97,7 +101,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=39"></script>
-  <script src="app.js?v=39"></script>
+  <script src="config.js?v=44"></script>
+  <script src="app.js?v=44"></script>
 </body>
 </html>
