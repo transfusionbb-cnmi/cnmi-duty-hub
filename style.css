@@ -857,3 +857,47 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 520px) {
   .profile-info-list > div { grid-template-columns: 1fr; gap: 3px; }
 }
+
+/* V59 hotfix: simple centered GPS status modal */
+.modal-status-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px auto;
+  font-size: 34px;
+  font-weight: 900;
+}
+.modal-status-icon.error {
+  background: #ffe8ea;
+  color: #d9485f;
+}
+.modal-message {
+  text-align: center;
+  color: #6b7a90;
+  font-size: 16px;
+  line-height: 1.55;
+  margin: 4px 0 10px;
+}
+
+
+/* V64: ลดความแน่นบนจอคอม โดยไม่กระทบ layout มือถือ */
+@media (min-width: 821px) {
+  html, body { font-size: 15px; }
+  .app-view { grid-template-columns: 286px minmax(0, 1fr); }
+  body.sidebar-collapsed .app-view { grid-template-columns: 84px minmax(0, 1fr); }
+  .topbar { padding: 14px 22px; }
+  .topbar h2 { font-size: 22px; line-height: 1.2; }
+  .page-content { padding: 20px 22px; gap: 16px; }
+  .card { padding: 16px; }
+  .card h3 { font-size: 17px; }
+  label { gap: 6px; }
+  input, select, textarea { padding: 10px 12px; border-radius: 13px; }
+  .primary-btn, .ghost-btn, .danger-ghost, .soft-btn { min-height: 40px; padding: 8px 14px; }
+  .nav-btn { font-size: 15px; min-height: 42px; padding: 9px 12px; }
+  .nav-section-title small { font-size: 11px; }
+  .user-mini { font-size: 13px; padding: 10px; }
+  th, td { padding: 10px 12px; }
+  .profile-info-list > div { padding: 10px 0; }
+}

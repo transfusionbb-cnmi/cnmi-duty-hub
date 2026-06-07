@@ -1,4 +1,4 @@
-/* CNMI Staff Planner V47 - profile/calendar/hr/month-position fixes */
+/* CNMI Staff Planner V64 - v59 stable + profile/trade/GPS polish */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'ภาพรวมวันนี้', subtitle: 'สรุปภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -181,6 +181,25 @@ let state = {
 function isMobileView() { return window.matchMedia && window.matchMedia('(max-width: 820px)').matches; }
 function niceRoleRateLabel(value) {
   return ({ mt:'เรท MT', kerk:'เรทเคิก', custom:'ตกลงกันเอง', receiver:'ตามเรทคนรับเวร', owner:'ตามเรทเจ้าของเวรเดิม' }[value] || value || '-');
+}
+
+function isSelfPaidTrade(r) {
+  return r && String(r.rate_mode || '').toLowerCase() === 'custom';
+}
+function selfPaidDutyProxyOptions(date=todayStr()) {
+  const me = currentStaffId();
+  if (!me) return [];
+  const rows = state.tradeRequests.filter(r => {
+    if (!isSelfPaidTrade(r)) return false;
+    if (r.receiver_id !== me) return false;
+    if (!['confirmed','completed'].includes(r.status)) return false;
+    const from = state.rosterAssignments.find(a => a.id === r.from_assignment_id);
+    return from && from.duty_date === date && from.staff_id;
+  });
+  return rows.map(r => ({ request: r, assignment: state.rosterAssignments.find(a => a.id === r.from_assignment_id) })).filter(x => x.assignment);
+}
+function selfPaidTradeNotice() {
+  return `<div class="notice soft-notice wide"><b>กรณีตกลงกันเอง / จ่ายกันเอง</b><br>ตารางเวรหลักและผู้มีสิทธิ์ OT ไม่เปลี่ยน ระบบบันทึกไว้ว่าใครมาทำแทนจริงเท่านั้น คนรับเวรสามารถกด “ยืนยันวันอยู่เวร” แบบลงชื่อแทนเจ้าของเวรเดิมได้</div>`;
 }
 
 function $(id) { return document.getElementById(id); }
@@ -1727,7 +1746,7 @@ function renderTradeCards(rows, assignments) {
     const to = assignments.find(a => a.id === r.to_assignment_id) || null;
     const receiverActions = r.status === 'pending' && r.receiver_id === currentStaffId();
     const adminActions = r.status === 'confirmed' && isAdmin();
-    return `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(r.trade_type || '-')}</h3>${badge(tradeStatusLabel(r.status), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</div><div><b>ผู้ขอ:</b> ${staffPill(r.requester_id)}<br><b>ผู้รับ/คู่แลก:</b> ${staffPill(r.receiver_id)}</div><div>${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</div><div><b>เงินโดยประมาณ:</b> ${Number(r.amount_from || 0).toLocaleString()} บ.${r.amount_diff ? `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff).toLocaleString()} บ.</span>` : ''}</div><div class="actions">${receiverActions ? `<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button><button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>` : adminActions ? `<button class="tiny-btn" data-trade-apply="${r.id}">Admin บันทึกเปลี่ยนเวร</button>` : '<span class="muted">ไม่มีรายการที่ต้องกดตอนนี้</span>'}</div></div>`;
+    return `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(r.trade_type || '-')}</h3>${badge(tradeStatusLabel(r.status, r), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</div><div><b>ผู้ขอ:</b> ${staffPill(r.requester_id)}<br><b>ผู้รับ/คู่แลก:</b> ${staffPill(r.receiver_id)}</div><div>${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</div><div><b>เงินโดยประมาณ:</b> ${Number(r.amount_from || 0).toLocaleString()} บ.${r.amount_diff ? `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff).toLocaleString()} บ.</span>` : ''}</div><div class="actions">${receiverActions ? `<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button><button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>` : adminActions ? `<button class="tiny-btn" data-trade-apply="${r.id}">${isSelfPaidTrade(r) ? 'Admin รับทราบข้อตกลง' : 'Admin บันทึกเปลี่ยนเวร'}</button>` : '<span class="muted">ไม่มีรายการที่ต้องกดตอนนี้</span>'}</div></div>`;
   }).join('')}</div>`;
 }
 function renderTradeRow(r, assignments) {
@@ -1735,9 +1754,12 @@ function renderTradeRow(r, assignments) {
   const to = assignments.find(a => a.id === r.to_assignment_id) || null;
   const receiverActions = r.status === 'pending' && r.receiver_id === currentStaffId();
   const adminActions = r.status === 'confirmed' && isAdmin();
-  return `<tr><td>${staffPill(r.requester_id)}</td><td>${staffPill(r.receiver_id)}</td><td>${escapeHtml(r.trade_type)} • ${escapeHtml(niceRoleRateLabel(r.rate_mode))}<br><span class="muted">${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</span></td><td>${Number(r.amount_from || 0).toLocaleString()} บ.${r.amount_diff ? `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff).toLocaleString()} บ.</span>` : ''}</td><td>${badge(tradeStatusLabel(r.status), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</td><td>${receiverActions ? `<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button><button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>` : adminActions ? `<button class="tiny-btn" data-trade-apply="${r.id}">Admin บันทึกเปลี่ยนเวร</button>` : '-'}</td></tr>`;
+  return `<tr><td>${staffPill(r.requester_id)}</td><td>${staffPill(r.receiver_id)}</td><td>${escapeHtml(r.trade_type)} • ${escapeHtml(niceRoleRateLabel(r.rate_mode))}<br><span class="muted">${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</span></td><td>${Number(r.amount_from || 0).toLocaleString()} บ.${r.amount_diff ? `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff).toLocaleString()} บ.</span>` : ''}</td><td>${badge(tradeStatusLabel(r.status, r), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</td><td>${receiverActions ? `<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button><button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>` : adminActions ? `<button class="tiny-btn" data-trade-apply="${r.id}">${isSelfPaidTrade(r) ? 'Admin รับทราบข้อตกลง' : 'Admin บันทึกเปลี่ยนเวร'}</button>` : '-'}</td></tr>`;
 }
-function tradeStatusLabel(status) { return ({ pending:'รออีกฝ่ายยืนยัน', confirmed:'ยืนยันแล้ว รอ Admin บันทึก', rejected:'ปฏิเสธ', completed:'เปลี่ยนตารางแล้ว' }[status] || status || '-'); }
+function tradeStatusLabel(status, row=null) {
+  if (row && isSelfPaidTrade(row)) return ({ pending:'รออีกฝ่ายยืนยัน', confirmed:'ยืนยันแล้ว รอ Admin รับทราบ', rejected:'ปฏิเสธ', completed:'รับทราบแล้ว / ไม่เปลี่ยนตาราง' }[status] || status || '-');
+  return ({ pending:'รออีกฝ่ายยืนยัน', confirmed:'ยืนยันแล้ว รอ Admin บันทึก', rejected:'ปฏิเสธ', completed:'เปลี่ยนตารางแล้ว' }[status] || status || '-');
+}
 function renderReadOnlySchedule(assignments) {
   if (!assignments.length) return empty('ยังไม่มีตารางเวรของเดือนนี้');
   const { y, m } = getMonthRange(state.monthKey);
@@ -2165,15 +2187,19 @@ function buildMonthlyPositionDraft(key) {
 }
 
 function renderOtPage() {
+  const proxyOptions = selfPaidDutyProxyOptions(todayStr());
   const myDuty = state.rosterAssignments.some(x => x.duty_date === todayStr() && x.staff_id === currentStaffId());
+  const canCheckIn = myDuty || isAdmin() || proxyOptions.length > 0;
   const mine = state.otRequests.filter(x => x.staff_id === currentStaffId());
   const rows = isAdmin() ? state.otRequests : mine;
+  const proxyBox = proxyOptions.length ? `<div class="notice soft-notice compact"><b>วันนี้มีข้อตกลงจ่ายกันเองที่คุณเป็นคนมาทำแทน</b><br>${proxyOptions.map(x => `ลงชื่อแทนเวรของ ${staffPill(x.assignment.staff_id)} • ${DUTY_LABEL[x.assignment.duty_code] || x.assignment.duty_code}`).join('<br>')}</div>` : '';
   return `<div class="grid grid-2 ot-page">
     <div class="card ot-card">
       <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
-      <p class="muted">${myDuty ? 'วันนี้มีชื่อคุณในตารางเวร' : 'วันนี้ยังไม่พบชื่อคุณในตารางเวร ถ้าลงจริงให้ Admin ตรวจตารางก่อน'}</p>
-      <button class="primary-btn" data-check-in ${(!myDuty && !isAdmin()) ? 'disabled' : ''}>ยืนยันวันอยู่เวร</button>
-      <p class="hint gps-help compact">ใช้ GPS ตามพิกัดใน config.js หากเครื่องไม่ให้สิทธิ์ Location ให้กด Allow ในเบราว์เซอร์ก่อน</p>
+      <p class="muted">${myDuty ? 'วันนี้มีชื่อคุณในตารางเวร' : proxyOptions.length ? 'วันนี้คุณเป็นผู้มาทำเวรแทนตามข้อตกลงกันเอง / จ่ายกันเอง' : 'วันนี้ยังไม่พบชื่อคุณในตารางเวร ถ้าลงจริงให้ Admin ตรวจตารางก่อน'}</p>
+      ${proxyBox}
+      <button class="primary-btn" data-check-in ${(!canCheckIn) ? 'disabled' : ''}>ยืนยันวันอยู่เวร</button>
+      <p class="hint gps-help compact">ใช้ GPS เพื่อตรวจว่าอยู่ในพื้นที่โรงพยาบาลก่อนยืนยัน</p>
     </div>
     <div class="card ot-card">
       <h3>ส่วนที่ 2 ขอ OT เพิ่ม / เวรปั่นเลือด</h3>
@@ -2195,6 +2221,7 @@ function renderOtPage() {
     </div>
   </div>`;
 }
+
 function renderOtTable(rows) {
   if (!rows.length) return empty('ยังไม่มีรายการ OT');
   const table = `<div class="table-wrap ot-desktop-table"><table><thead><tr><th>ชื่อ</th><th>วันที่</th><th>เหตุผล</th><th>ชั่วโมง</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
@@ -2928,16 +2955,25 @@ async function saveHoliday(form) {
 async function checkIn() {
   const pos = await getGps();
   if (!pos.ok) return showGpsHelp(pos.message);
-  if (!isInsideGeofence(pos) && CFG.GEOFENCE?.enabled) return showGpsHelp('อยู่นอกพื้นที่ที่กำหนด ไม่สามารถยืนยันวันอยู่เวรได้');
-  const device = navigator.userAgent.slice(0, 250);
-  const { error } = await sb.from('attendance_logs').insert({ staff_id: currentStaffId(), duty_date: todayStr(), check_in_at: new Date().toISOString(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device });
+  if (!isInsideGeofence(pos) && CFG.GEOFENCE?.enabled) return showGpsHelp('ไม่ได้อยู่ในพื้นที่โรงพยาบาล');
+  const proxyOptions = selfPaidDutyProxyOptions(todayStr());
+  let staffIdToLog = currentStaffId();
+  let proxyText = '';
+  if (!state.rosterAssignments.some(x => x.duty_date === todayStr() && x.staff_id === currentStaffId()) && proxyOptions.length) {
+    const pick = proxyOptions[0];
+    staffIdToLog = pick.assignment.staff_id;
+    proxyText = ` | ลงชื่อแทนโดย ${staffNick(currentStaffId())} จากข้อตกลงจ่ายกันเอง request:${pick.request.id}`;
+  }
+  const device = (navigator.userAgent + proxyText).slice(0, 250);
+  const { error } = await sb.from('attendance_logs').insert({ staff_id: staffIdToLog, duty_date: todayStr(), check_in_at: new Date().toISOString(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device });
   if (error) return showToast(error.message);
-  await loadAllData(); renderPage(); showToast('ยืนยันวันอยู่เวรแล้ว');
+  await loadAllData(); renderPage();
+  showToast(proxyText ? 'ยืนยันวันอยู่เวรแทนเจ้าของเวรเดิมแล้ว' : 'ยืนยันวันอยู่เวรแล้ว');
 }
 async function saveOtRequest(form) {
   const pos = await getGps();
   if (!pos.ok) return showGpsHelp(pos.message);
-  if (!isInsideGeofence(pos) && CFG.GEOFENCE?.enabled) return showGpsHelp('อยู่นอกพื้นที่ที่กำหนด ไม่สามารถยืนยันขอ OT เพิ่มได้');
+  if (!isInsideGeofence(pos) && CFG.GEOFENCE?.enabled) return showGpsHelp('ไม่ได้อยู่ในพื้นที่โรงพยาบาล');
   const fd = new FormData(form);
   const row = { staff_id: currentStaffId(), work_date: fd.get('work_date'), end_time: fd.get('end_time'), reason: fd.get('reason'), note: fd.get('note'), status: 'รออนุมัติ', check_out_at: new Date().toISOString(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: navigator.userAgent.slice(0, 250) };
   const { error } = await sb.from('ot_requests').insert(row);
@@ -2950,12 +2986,8 @@ async function updateOtStatus(id, status) {
   await loadAllData(); renderPage(); showToast('อัปเดต OT แล้ว');
 }
 function showGpsHelp(message) {
-  const geo = CFG.GEOFENCE || {};
-  showModal(`<h2>ยังยืนยันตำแหน่งไม่ได้</h2>
-    <div class="notice soft-notice"><b>${escapeHtml(message || 'ไม่สามารถอ่าน GPS ได้')}</b></div>
-    <p class="hint">วิธีแก้บน iPhone/Safari: กดไอคอนหน้า URL หรือ aA > Website Settings > Location > Allow แล้ว Refresh หน้าเว็บ</p>
-    <p class="hint">ถ้าอยู่ช่วงทดสอบ ให้ตั้งค่าใน config.js: <b>GEOFENCE.enabled = false</b> ก่อน หรือถ้าจะใช้จริง ให้ตั้ง CNMI: <b>lat 13.52646, lng 100.76085</b> และ radiusMeters เช่น 500 เมตร</p>
-    <div class="table-wrap compact-detail-table"><table><tbody><tr><td>สถานะ GPS ในระบบ</td><td>${geo.enabled ? 'เปิดใช้การตรวจพื้นที่' : 'ยังไม่บังคับพื้นที่'}</td></tr><tr><td>พิกัดที่ตั้งไว้</td><td>${escapeHtml(String(geo.lat || '-'))}, ${escapeHtml(String(geo.lng || '-'))}</td></tr><tr><td>รัศมี</td><td>${escapeHtml(String(geo.radiusMeters || 500))} เมตร</td></tr></tbody></table></div>`);
+  showModal(`<div class="modal-status-icon error">!</div><h2>แจ้งเตือน</h2>
+    <p class="modal-message">${escapeHtml(message || 'ไม่ได้อยู่ในพื้นที่โรงพยาบาล')}</p>`);
 }
 function getGps() {
   return new Promise(resolve => {
@@ -2968,11 +3000,11 @@ function getGps() {
   });
 }
 function gpsErrorMessage(err) {
-  if (!err) return 'ไม่สามารถอ่าน GPS ได้';
-  if (err.code === 1) return 'มือถือ/Browser ไม่อนุญาตให้ใช้ตำแหน่ง กรุณาเปิด Location Permission ให้เว็บนี้ก่อน';
-  if (err.code === 2) return 'หา GPS ไม่เจอ ลองเปิด Location/Wi‑Fi แล้วกดใหม่';
-  if (err.code === 3) return 'อ่าน GPS ไม่ทันเวลา ลองกดใหม่อีกครั้ง';
-  return err.message || 'ไม่สามารถอ่าน GPS ได้';
+  if (!err) return 'ไม่ได้อยู่ในพื้นที่โรงพยาบาล';
+  if (err.code === 1) return 'ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง กรุณาเปิด Location Permission ให้เว็บนี้ก่อน';
+  if (err.code === 2) return 'ไม่ได้อยู่ในพื้นที่โรงพยาบาล';
+  if (err.code === 3) return 'อ่านตำแหน่งไม่ทันเวลา กรุณาลองใหม่อีกครั้ง';
+  return 'ไม่ได้อยู่ในพื้นที่โรงพยาบาล';
 }
 function isInsideGeofence(pos) {
   if (!CFG.GEOFENCE?.enabled) return true;
@@ -3134,9 +3166,9 @@ function showTradeModal(assignmentId) {
       <label>ประเภท <select name="trade_type" id="tradeTypeSelect"><option value="ขายเวร">ขายเวร / เบิก OT ผ่าน HR</option><option value="ยกเวร">ยกเวร / ให้เวรอีกคนไปเลย</option><option value="แลกเวร">แลกเวร</option></select></label>
       <label>คนที่จะรับ/คู่แลก <select name="receiver_id" id="tradeReceiverSelect" required><option value="">เลือกคน</option>${possibleReceiver.map(s => `<option value="${s.id}">${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select></label>
       <label class="wide trade-swap-only" id="tradeSwapWrap" style="display:none">กรณีแลกเวรเท่านั้น: เลือกเวรของคู่แลก <select name="to_assignment_id" id="tradeSwapSelect"><option value="">เลือกเวรของคู่แลก</option>${otherDutyOptions}</select><span class="hint">ถ้าเป็นขายเวร/ยกเวร ไม่ต้องเลือกวันที่/เวรซ้ำ ระบบใช้เวรที่กดมาให้อัตโนมัติ</span></label>
-      <label id="tradeRateWrap">คิดเรท <select name="rate_mode"><option value="mt">เรท MT</option><option value="kerk">เรทเคิก</option><option value="custom">ตกลงกันเอง / จ่ายกันเอง</option></select><span class="hint">ขายเวร = ใช้เรท MT/เคิก เพื่อเบิก OT หรือเลือกตกลงกันเองถ้าน้องจ่ายกันเอง</span></label>
+      <label id="tradeRateWrap">คิดเรท <select name="rate_mode"><option value="mt">เรท MT</option><option value="kerk">เรทเคิก</option><option value="custom">ตกลงกันเอง / จ่ายกันเอง</option></select><span class="hint">ถ้าเลือกตกลงกันเอง ระบบจะไม่เปลี่ยนตารางเวรหลักและไม่เปลี่ยนผู้มีสิทธิ์ OT</span></label>
       <label id="tradeCustomWrap">จำนวนเงินตกลงเอง (ถ้ามี) <input name="custom_amount" type="number" min="0" step="1" placeholder="ไม่บังคับ"></label>
-      <label class="wide">รายละเอียดข้อตกลง <textarea name="note" placeholder="เช่น เบิกผ่าน HR / ยกให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว"></textarea></label>
+      ${selfPaidTradeNotice()}<label class="wide">รายละเอียดข้อตกลง <textarea name="note" placeholder="เช่น เบิกผ่าน HR / ยกให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว"></textarea></label>
       <button class="primary-btn wide" type="submit">ส่งคำขอให้อีกฝ่ายยืนยัน</button>
     </form>`);
   updateTradeSwapVisibility();
@@ -3180,15 +3212,23 @@ async function saveTradeRequest(form) {
 async function updateTradeStatus(id, status) {
   const { error } = await sb.from('roster_trade_requests').update({ status, updated_by: currentStaffId(), confirmed_at: status==='confirmed' ? new Date().toISOString() : null }).eq('id', id);
   if (error) return showToast(friendlyDbError(error));
-  await loadAllData(); renderPage(); showToast(status === 'confirmed' ? 'ยืนยันคำขอแล้ว รอ Admin บันทึกเปลี่ยนเวร' : 'ปฏิเสธคำขอแล้ว');
+  await loadAllData(); renderPage(); showToast(status === 'confirmed' ? 'ยืนยันคำขอแล้ว' : 'ปฏิเสธคำขอแล้ว');
 }
 async function applyTradeRequest(id) {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
   const r = state.tradeRequests.find(x => x.id === id);
-  if (!r || r.status !== 'confirmed') return showToast('คำขอนี้ยังไม่พร้อมให้บันทึกเปลี่ยนเวร');
+  if (!r || r.status !== 'confirmed') return showToast('คำขอนี้ยังไม่พร้อมให้บันทึก');
   const from = state.rosterAssignments.find(a => a.id === r.from_assignment_id);
   const to = r.to_assignment_id ? state.rosterAssignments.find(a => a.id === r.to_assignment_id) : null;
   if (!from) return showToast('ไม่พบเวรต้นทาง');
+
+  if (isSelfPaidTrade(r)) {
+    const { error } = await sb.from('roster_trade_requests').update({ status: 'completed', updated_by: currentStaffId() }).eq('id', id);
+    if (error) return showToast(friendlyDbError(error));
+    await loadAllData(); renderPage(); showToast('รับทราบข้อตกลงแล้ว ตารางเวรและผู้มีสิทธิ์ OT ไม่เปลี่ยน');
+    return;
+  }
+
   const updates = [];
   updates.push(sb.from('roster_assignments').update({ staff_id: r.receiver_id, updated_by: currentStaffId() }).eq('id', from.id));
   if (to) updates.push(sb.from('roster_assignments').update({ staff_id: r.requester_id, updated_by: currentStaffId() }).eq('id', to.id));
@@ -3241,7 +3281,7 @@ function auditSummary(a) {
   if (a.table_name === 'public_holidays') return `${tableLabel(a.table_name)}: ${formatThaiDate(n.holiday_date || o.holiday_date)} ${n.title || o.title || ''}`;
   if (a.table_name === 'daily_position_eligibility') return `${tableLabel(a.table_name)}: ${staffNick(n.staff_id || o.staff_id)} ${n.position_code || o.position_code || ''} = ${(n.is_eligible ?? o.is_eligible) ? 'เปิด' : 'ปิด'}`;
   if (a.table_name === 'daily_position_day_status') return `${tableLabel(a.table_name)}: ${formatThaiDate(n.work_date || o.work_date)} = ${n.status || o.status || '-'}`;
-  if (a.table_name === 'roster_trade_requests') return `${tableLabel(a.table_name)}: ${staffNick(n.requester_id || o.requester_id)} → ${staffNick(n.receiver_id || o.receiver_id)} ${n.trade_type || o.trade_type || ''} = ${tradeStatusLabel(n.status || o.status)}`;
+  if (a.table_name === 'roster_trade_requests') return `${tableLabel(a.table_name)}: ${staffNick(n.requester_id || o.requester_id)} → ${staffNick(n.receiver_id || o.receiver_id)} ${n.trade_type || o.trade_type || ''} = ${tradeStatusLabel(n.status || o.status, n.id ? n : o)}`;
   return tableLabel(a.table_name);
 }
 function exportAuditExcel() {
@@ -3681,6 +3721,14 @@ function bindGlobalEvents() {
   function statusText(st) { return ({ approved:'อนุมัติแล้ว', rejected:'ไม่อนุมัติ', pending:'รออนุมัติ' }[low(st)] || st || 'รออนุมัติ'); }
   function cleanMonth(v) { return s(v || state.profileSummaryFilterMonth || state.monthKey || monthKey(new Date())); }
 
+  function normalizeProfileStatus(status) {
+    const x = low(status || 'pending');
+    if (['approved','approve','อนุมัติ','อนุมัติแล้ว'].includes(x)) return 'approved';
+    if (['rejected','reject','ไม่อนุมัติ','ปฏิเสธ'].includes(x)) return 'rejected';
+    if (['pending','รออนุมัติ','รอตรวจ','รอตรวจสอบ'].includes(x)) return 'pending';
+    return x || 'pending';
+  }
+
   function normalizeRequest(row) {
     if (!row) return row;
     return {
@@ -3696,7 +3744,7 @@ function bindGlobalEvents() {
       old_value: row.old_value ?? row.oldValue ?? '',
       new_value: row.new_value ?? row.newValue ?? '',
       note: row.note ?? '',
-      status: row.status || 'pending',
+      status: normalizeProfileStatus(row.status || 'pending'),
       reviewed_by: row.reviewed_by || row.reviewedBy,
       reviewed_at: row.reviewed_at || row.reviewedAt,
       review_note: row.review_note || row.reviewNote || '',
@@ -3852,10 +3900,12 @@ function bindGlobalEvents() {
   };
 
   function ensureProfileSummaryNav() {
-    if (!NAV_ITEMS.some(x => x.id === 'profileRequestSummary')) {
-      const idx = NAV_ITEMS.findIndex(x => x.id === 'profileRequests');
-      NAV_ITEMS.splice(idx >= 0 ? idx + 1 : NAV_ITEMS.length, 0, { id:'profileRequestSummary', icon:'📄', title:'สรุปคำขอแก้ไขข้อมูลส่วนตัว', subtitle:'รายการที่อนุมัติ/ไม่อนุมัติแล้ว', group:'admin' });
+    for (let i = NAV_ITEMS.length - 1; i >= 0; i--) {
+      const x = NAV_ITEMS[i] || {};
+      if (x.id === 'profileRequestSummary' || x.title === 'สรุปคำขอแก้ไขข้อมูลส่วนตัว') NAV_ITEMS.splice(i, 1);
     }
+    const idx = NAV_ITEMS.findIndex(x => x.id === 'profileRequests');
+    NAV_ITEMS.splice(idx >= 0 ? idx + 1 : NAV_ITEMS.length, 0, { id:'profileRequestSummary', icon:'📄', title:'สรุปคำขอแก้ไขข้อมูลส่วนตัว', subtitle:'รายการที่อนุมัติ/ไม่อนุมัติแล้ว', group:'admin' });
   }
   ensureProfileSummaryNav();
 

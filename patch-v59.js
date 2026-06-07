@@ -1,4 +1,4 @@
-/* CNMI Staff Planner Patch V59
+/* CNMI Staff Planner Patch V64
    - เพิ่มตัวกรองรายการลา/ไม่รับเวร: ชื่อ, วันที่, เดือน, ปี, ประเภท
    - เพิ่มตัวกรองกิจกรรม: ผู้เข้าร่วม, วันที่, เดือน, ปี, ประเภท
    - จัดระยะฟอร์มข้อมูลส่วนตัวไม่ให้ตัวหนังสือชนกัน
@@ -6,7 +6,7 @@
    - ปรับกติกา Auto Assign: เวร ชบด เป็น hard rule ห้ามติดกัน ส่วนเวรอื่นพยายามเลี่ยงก่อน ถ้าเลี่ยงไม่ได้จึงยอมให้ติดได้
 */
 (function(){
-  const PATCH = 'V59_FILTERS_DUTY_RULES';
+  const PATCH = 'V64_FILTERS_DUTY_RULES_SAFE';
   const id = (v)=>String(v ?? '').trim();
   const low = (v)=>id(v).toLowerCase();
   const esc = (v)=>{ try { return escapeHtml(v); } catch(e){ return id(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); } };
@@ -178,15 +178,22 @@
     </div>`;
   };
 
-  // Trade modal: ช่วยอธิบาย flow กรณีตกลงกันเองให้ staff เข้าใจว่าแตะ/ยืนยันได้ แต่ตารางจะเปลี่ยนหลัง Admin บันทึก
+  // Trade modal: ให้เหลือข้อความจ่ายกันเองแบบสั้น และไม่ขัดกับ logic จริง
   const oldShowTradeModal = window.showTradeModal;
-  window.showTradeModal = function showTradeModalV59(slotId){
+  window.showTradeModal = function showTradeModalV64(slotId){
     if (oldShowTradeModal) oldShowTradeModal(slotId);
     setTimeout(()=>{
       const body = $id('modalBody');
-      if (!body || body.querySelector('.trade-selfpay-note')) return;
+      if (!body) return;
+      body.querySelectorAll('.trade-selfpay-note').forEach(n => n.remove());
+      const notices = Array.from(body.querySelectorAll('.notice')).filter(n => /ตกลงกันเอง|จ่ายกันเอง/.test(n.textContent || ''));
+      notices.slice(1).forEach(n => n.remove());
+      if (notices[0]) {
+        notices[0].innerHTML = '<b>กรณีตกลงกันเอง / จ่ายกันเอง</b><br>ตารางเวรหลักและผู้มีสิทธิ์ OT ไม่เปลี่ยน ระบบบันทึกไว้ว่าใครมาทำแทนจริงเท่านั้น คนรับเวรใช้ลงชื่อแทนเจ้าของเวรเดิมได้';
+        return;
+      }
       const rateWrap = body.querySelector('#tradeRateWrap');
-      if (rateWrap) rateWrap.insertAdjacentHTML('afterend', `<div class="wide trade-selfpay-note"><b>กรณีตกลงกันเอง / จ่ายกันเอง:</b> อีกฝ่ายกดยืนยันในแอพได้ตามปกติ จากนั้น Admin ต้องกด “บันทึกเปลี่ยนเวร” ก่อน ตารางจึงเปลี่ยนเป็นชื่อคนที่มาทำเวรจริง และคนนั้นใช้ลงชื่ออยู่เวรวันนั้นได้</div>`);
+      if (rateWrap) rateWrap.insertAdjacentHTML('afterend', `<div class="notice soft-notice wide"><b>กรณีตกลงกันเอง / จ่ายกันเอง</b><br>ตารางเวรหลักและผู้มีสิทธิ์ OT ไม่เปลี่ยน ระบบบันทึกไว้ว่าใครมาทำแทนจริงเท่านั้น คนรับเวรใช้ลงชื่อแทนเจ้าของเวรเดิมได้</div>`);
     },0);
   };
 
