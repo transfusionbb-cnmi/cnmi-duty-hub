@@ -223,7 +223,17 @@
   document.addEventListener('click', async function(e){
     if (e.target.closest('[data-v58-close-modal]')) { $id('modal')?.classList.add('hidden'); return; }
     const menuBtn = e.target.closest('#mobileMenuBtn');
-    if (menuBtn && window.innerWidth > 900) { e.preventDefault(); e.stopImmediatePropagation(); document.body.classList.toggle('cnmi-sidebar-collapsed'); return; }
+    if (menuBtn && window.innerWidth > 900) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      document.body.classList.remove('cnmi-sidebar-collapsed');
+      const sidebar = $id('sidebar') || document.getElementById('sidebar');
+      if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+        document.body.classList.toggle('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+      }
+      return;
+    }
     if (e.target.closest('[data-refresh-profile-requests]')) { state.profileChangeRequestsLoaded=false; await loadProfileChangeRequests(); renderPage(); }
   }, true);
   document.addEventListener('change', function(e){
