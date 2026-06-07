@@ -157,6 +157,7 @@ let state = {
   positionDayStatus: [],
   profileChangeRequests: [],
   eligibilityStaffId: null,
+  usersStaffId: null,
   auditDate: todayStr(),
   calendarDate: new Date(),
   calendarView: 'month',
@@ -747,21 +748,32 @@ async function loadAllData() {
   state.incharges = incharges.data || [];
   state.positionEligibility = positionEligibility.data || [];
   state.positionDayStatus = positionDayStatus.data || [];
-  // V47: load profile change requests through RPC using current staff id from app profile.
-  // This fixes cases where rows exist in Supabase but the app cannot display them because auth.uid/user_id mapping is stale.
-  try {
-    const pr = await sb.rpc('list_profile_change_requests_v47', {
-      p_staff_id: currentStaffId(),
-      p_is_admin: isAdmin()
-    });
-    if (pr.error) throw pr.error;
-    state.profileChangeRequests = pr.data || [];
-  } catch (err) {
-    console.warn('load profile change requests via v47 rpc failed, trying direct select', err);
-    const direct = await sb.from('profile_change_requests').select('*').order('created_at', { ascending:false });
-    const data = direct.error ? [] : (direct.data || []);
-    state.profileChangeRequests = isAdmin() ? data : data.filter(r => r.staff_id === currentStaffId());
+  await loadProfileChangeRequests();
+}
+
+async function loadProfileChangeRequests() {
+  const staffId = currentStaffId();
+  const email = state.profile?.email || state.session?.user?.email || null;
+  const rows = [];
+  const addRows = (arr) => (arr || []).forEach(r => { if (r && !rows.some(x => x.id === r.id)) rows.push(r); });
+
+  // V49: ดึงหลายทาง เพื่อกันเคสข้อมูลมีใน Supabase แต่หน้าเว็บไม่แสดงจาก RLS/RPC version เก่า
+  const attempts = [
+    () => sb.rpc('list_profile_change_requests_v49', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
+    () => sb.rpc('list_profile_change_requests_v47', { p_staff_id: staffId, p_is_admin: isAdmin() }),
+    () => sb.rpc('list_profile_change_requests_v46'),
+    () => sb.from('profile_change_requests').select('*').order('created_at', { ascending:false })
+  ];
+  for (const fn of attempts) {
+    try {
+      const res = await fn();
+      if (!res?.error) addRows(res.data || []);
+    } catch (err) {
+      console.warn('profile change request load attempt failed', err);
+    }
   }
+  rows.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  state.profileChangeRequests = isAdmin() ? rows : rows.filter(r => r.staff_id === staffId || r.requested_by === staffId);
 }
 
 function renderNav() {
@@ -2187,7 +2199,10 @@ function renderAuditPage() {
 function renderUsersPage() {
   if (!isAdmin()) return noPermission();
   const staffRows = orderedStaff(state.staff);
-  const userCard = (s) => `<div class="admin-user-card" data-staff-row="${s.id}">
+  if (!staffRows.length) return empty('ยังไม่มีผู้ใช้งาน');
+  if (!state.usersStaffId || !staffRows.some(s => s.id === state.usersStaffId)) state.usersStaffId = staffRows[0].id;
+  const selected = staffRows.find(s => s.id === state.usersStaffId) || staffRows[0];
+  const userForm = (s) => `<div class="admin-user-card admin-user-single-card" data-staff-row="${s.id}">
     <div class="admin-user-head">
       <div class="admin-user-title">${staffPill(s)}<span>${escapeHtml(s.full_name || '')}</span></div>
       <button class="tiny-btn" data-reset-user-email="${escapeHtml(s.email || '')}">ส่ง reset</button>
@@ -2210,28 +2225,37 @@ function renderUsersPage() {
       <input type="hidden" data-field="maternity_status" value="${s.maternity_status ? 'true' : 'false'}">
     </div>
   </div>`;
-  return `<div class="grid users-page-v48">
-    <div class="card">
-      <div class="section-title"><div><h3>เพิ่มผู้ใช้งานใหม่</h3><p class="hint">คนใหม่จะยังไม่ถูก Auto Assign ตารางตำแหน่งรายวัน จนกว่า Admin จะเปิดสิทธิ์ให้</p></div></div>
-      <form id="newStaffForm" class="form-grid compact-form">
-        <label>ชื่อเล่น <input name="nickname" required></label>
-        <label>ชื่อ-สกุล <input name="full_name" required></label>
-        <label>Email Mahidol <input name="email" placeholder="name@mahidol.ac.th" required></label>
-        <label>ชื่อผู้ใช้ <input name="login_name" placeholder="เว้นว่างไว้ ให้เจ้าหน้าที่มาตั้งเอง"></label>
-        <label>รหัสพนักงาน <input name="employee_code"></label>
-        <label>ประเภท <select name="staff_type"><option>MT</option><option>เคิก</option><option>แพทย์</option></select></label>
-        <label>ตำแหน่ง <input name="position" value="MT"></label>
-        <label>เบอร์โทร <input name="phone" placeholder="เช่น 085-xxx-xxxx"></label>
-        <label>Role <select name="role"><option>staff</option><option>admin</option></select></label>
-        <label>สีประจำตัว <input name="staff_color" type="color" value="#e8f3ff"></label>
-        <button class="primary-btn" type="submit">เพิ่มผู้ใช้งาน</button>
-      </form>
+  return `<div class="grid eligibility-page users-page-v49">
+    <div class="card eligibility-staff-panel">
+      <div class="section-title"><h3>เลือกเจ้าหน้าที่</h3></div>
+      <label>เจ้าหน้าที่
+        <select id="usersStaffSelect">${staffRows.map(s => `<option value="${s.id}" ${selected.id===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select>
+      </label>
+      <div class="selected-staff-card" style="--staff-bg:${staffColor(selected)};--staff-fg:${textColorFor(staffColor(selected))}">
+        <div class="big-staff-name">${escapeHtml(selected.nickname || selected.full_name)}</div>
+        <div>${escapeHtml(selected.full_name || '')}</div>
+        <small>${escapeHtml(selected.staff_type || '-')} • ${escapeHtml(selected.role || '-')} • ${selected.is_active ? 'Active' : 'Inactive'}</small>
+      </div>
+      <details class="add-user-details">
+        <summary>เพิ่มผู้ใช้งานใหม่</summary>
+        <form id="newStaffForm" class="form-grid compact-form">
+          <label>ชื่อเล่น <input name="nickname" required></label>
+          <label>ชื่อ-สกุล <input name="full_name" required></label>
+          <label>Email Mahidol <input name="email" placeholder="name@mahidol.ac.th" required></label>
+          <label>ชื่อผู้ใช้ <input name="login_name" placeholder="เว้นว่างไว้ ให้เจ้าหน้าที่มาตั้งเอง"></label>
+          <label>รหัสพนักงาน <input name="employee_code"></label>
+          <label>ประเภท <select name="staff_type"><option>MT</option><option>เคิก</option><option>แพทย์</option></select></label>
+          <label>ตำแหน่ง <input name="position" value="MT"></label>
+          <label>เบอร์โทร <input name="phone" placeholder="เช่น 085-xxx-xxxx"></label>
+          <label>Role <select name="role"><option>staff</option><option>admin</option></select></label>
+          <label>สีประจำตัว <input name="staff_color" type="color" value="#e8f3ff"></label>
+          <button class="primary-btn" type="submit">เพิ่มผู้ใช้งาน</button>
+        </form>
+      </details>
     </div>
-    <div class="card">
-      <div class="section-title users-save-title"><div><h3>ผู้ใช้งานและสิทธิ์</h3><p class="hint">ปรับเป็นการ์ดรายคนแล้ว ลดการเลื่อนซ้าย-ขวา และตัดคอลัมน์ที่ไม่จำเป็นออก</p></div><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
-      <div class="admin-user-grid">${staffRows.map(userCard).join('')}</div>
-      <div class="toolbar user-bottom-save"><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
-      <p class="hint">สิทธิ์ตำแหน่งรายวันแยกไปที่เมนู Admin → สิทธิ์ตำแหน่งรายวัน เพื่อให้ใช้ง่ายขึ้นและไม่ยาวเกินหน้า</p>
+    <div class="card eligibility-position-panel">
+      <div class="section-title users-save-title"><div><h3>ข้อมูลและสิทธิ์ของ ${escapeHtml(selected.nickname || selected.full_name)}</h3></div><button class="primary-btn" data-save-staff-users>บันทึกข้อมูลผู้ใช้งาน</button></div>
+      ${userForm(selected)}
     </div>
   </div>`;
 }
@@ -2245,7 +2269,7 @@ function renderEligibilityPage() {
   const grouped = ALL_POSITION_TEMPLATES.reduce((acc, p) => { (acc[p.zone] = acc[p.zone] || []).push(p); return acc; }, {});
   return `<div class="grid eligibility-page">
     <div class="card eligibility-staff-panel">
-      <div class="section-title"><div><h3>เลือกเจ้าหน้าที่</h3><p class="hint">เลือกทีละคน จะเห็นชื่อค้างไว้ ไม่ต้องเลื่อนซ้าย-ขวาหนัก ๆ</p></div></div>
+      <div class="section-title"><h3>เลือกเจ้าหน้าที่</h3></div>
       <label>เจ้าหน้าที่
         <select id="eligibilityStaffSelect">${activeStaff.map(s => `<option value="${s.id}" ${selected.id===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select>
       </label>
@@ -2254,7 +2278,6 @@ function renderEligibilityPage() {
         <div>${escapeHtml(selected.full_name || '')}</div>
         <small>${escapeHtml(selected.staff_type || '-')} • ${escapeHtml(selected.position_training_status || 'ใช้งานปกติ')}</small>
       </div>
-      <p class="hint">ถ้าคนใหม่ผ่านโปรแล้ว ให้กลับไปเมนู ผู้ใช้งานและสิทธิ์ → เปลี่ยนสถานะ และเปิด Auto ตำแหน่งก่อน จากนั้นค่อยติ๊กตำแหน่งที่ขึ้นได้ตรงหน้านี้ ตำแหน่งออกหน่วยจะแยกอยู่ในโซน “ออกหน่วย” ไม่ใช่ตำแหน่งประจำห้อง Donor</p>
     </div>
     <div class="card eligibility-position-panel">
       <div class="section-title">
@@ -2353,6 +2376,7 @@ function handleChange(e) {
   if (e.target.id === 'positionDateInput') { state.positionDate = e.target.value; renderPage(); }
   if (e.target.id === 'auditDateInput') { state.auditDate = e.target.value; renderPage(); }
   if (e.target.id === 'eligibilityStaffSelect') { state.eligibilityStaffId = e.target.value; renderPage(); }
+  if (e.target.id === 'usersStaffSelect') { state.usersStaffId = e.target.value; renderPage(); }
   if (e.target.id === 'positionMonthInput') { state.positionMonthKey = e.target.value; state.monthPositionDraft = null; renderPage(); }
   if (e.target.id === 'positionMonthViewInput') { state.positionMonthViewKey = e.target.value; renderPage(); }
   if (e.target.id === 'tradeFilterStaff') { state.tradeFilterStaff = e.target.value; renderPage(); }
@@ -2900,6 +2924,7 @@ async function saveProfileChangeRequest(form) {
   if (error) return showToast(friendlyDbError(error));
   form.reset();
   await loadAllData();
+  if (data && !state.profileChangeRequests.some(r => r.id === data.id)) state.profileChangeRequests.unshift(data);
   renderPage(); showToast('ส่งคำขอให้ Admin แล้ว');
 }
 async function reviewProfileChangeRequest(id, status) {
