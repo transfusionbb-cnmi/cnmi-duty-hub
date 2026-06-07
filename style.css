@@ -857,3 +857,10 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 520px) {
   .profile-info-list > div { grid-template-columns: 1fr; gap: 3px; }
 }
+
+/* V60 static fallback: Responsive 100% layout baseline (main override is in patch-v60.js) */
+html, body { width:100%; max-width:100%; overflow-x:hidden; }
+.app-view, .main-panel, .page-content, .card, .table-wrap { min-width:0; max-width:100%; }
+.table-wrap { overflow:auto; }
+.sidebar { overflow:hidden; }
+.main-nav { overflow-x:hidden; }
