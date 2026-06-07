@@ -1,4 +1,4 @@
-/* CNMI Staff Planner V39 - stable login after refresh */
+/* CNMI Staff Planner V40 - trade wording + CNMI GPS + Thai OT menu */
 const CFG = window.CNMI_CONFIG || {};
 const NAV_ITEMS = [
   { id: 'dashboard', icon: '📊', title: 'ภาพรวมวันนี้', subtitle: 'สรุปภาพรวมทั้งหมดของวันนี้', group: 'staff' },
@@ -7,10 +7,10 @@ const NAV_ITEMS = [
   { id: 'myProfile', icon: '👤', title: 'ข้อมูลส่วนตัว', subtitle: 'ดูข้อมูลและขอแก้ไขชื่อ/เบอร์โทร', group: 'staff' },
   { id: 'activities', icon: '🗂️', title: 'กิจกรรมหน่วยงาน', subtitle: 'ประชุม อบรม ออกหน่วย ตรวจมาตรฐาน ซ้อม CODE และอื่นๆ', group: 'staff' },
   { id: 'schedule', icon: '📋', title: 'ตารางเวรประจำเดือน', subtitle: 'ดูรายเดือน Export Excel / PDF / Print', group: 'staff' },
-  { id: 'tradeRequests', icon: '🔁', title: 'คำขอแลก/ขายเวร', subtitle: 'รอฉันยืนยัน / รอ Admin บันทึก', group: 'staff' },
+  { id: 'tradeRequests', icon: '🔁', title: 'คำขอแลก/ขาย/ยกเวร', subtitle: 'รอฉันยืนยัน / รอ Admin บันทึก', group: 'staff' },
   { id: 'positionMonthView', icon: '🗓️', title: 'ตารางตำแหน่งรายเดือน', subtitle: 'ดู default รายเดือนแบบอ่านอย่างเดียว', group: 'staff' },
   { id: 'positions', icon: '🧪', title: 'ตารางตำแหน่งรายวัน', subtitle: 'อินชาร์จปรับและประกาศตารางก่อนเริ่มงาน', group: 'staff' },
-  { id: 'ot', icon: '⏱️', title: 'OT & Attendance', subtitle: 'Check-In, ขอ OT, อนุมัติ, สรุป', group: 'staff' },
+  { id: 'ot', icon: '⏱️', title: 'ลงชื่ออยู่เวร / ขอ OT เพิ่ม', subtitle: 'ยืนยันอยู่เวรด้วย GPS, ขอ OT เพิ่ม, อนุมัติ, สรุป', group: 'staff' },
   { id: 'audit', icon: '🕵️', title: 'Audit Log ล่าสุด', subtitle: 'ประวัติการใช้งานแบบอ่านง่าย กรองรายวันได้', group: 'staff' },
   { id: 'hr', icon: '🧾', title: 'ตรวจสอบ HR', subtitle: 'Admin ตรวจว่าแจ้งใน HR แล้วหรือยัง', group: 'admin' },
   { id: 'hrSummary', icon: '✅', title: 'สรุปตรวจสอบ HR แล้ว', subtitle: 'รายการที่ Admin ตรวจสอบ HR แล้ว ย้อนกลับมาดูได้', group: 'admin' },
@@ -309,7 +309,7 @@ function friendlyDbError(error) {
   if (msg.includes('null value') && msg.includes('roster_assignments') && msg.includes('id')) return 'บันทึกตารางเวรไม่สำเร็จ เพราะระบบกำลังส่งรหัสรายการเวรว่างอยู่ กรุณารีเฟรชหน้าแล้วกดสร้างร่าง/บันทึกใหม่อีกครั้ง';
   if (msg.includes('violates not-null constraint')) return 'บันทึกไม่สำเร็จ เพราะมีข้อมูลจำเป็นบางช่องว่างอยู่ กรุณาตรวจช่องที่ยังไม่ได้เลือก';
   if (msg.includes('duplicate key')) return 'บันทึกซ้ำกับข้อมูลเดิม กรุณารีเฟรชแล้วลองใหม่';
-  if (msg.includes('roster_trade_requests_rate_mode_check') || msg.includes('rate_mode_check') || msg.includes('roster_trade_requests_t_mode_check') || msg.includes('trade_type_check')) return 'ยังส่งคำขอแลก/ขายเวรไม่ได้ เพราะฐานข้อมูลยังไม่รองรับรูปแบบคำขอ/เรทที่เลือก กรุณา Run SQL Patch V32 ก่อน';
+  if (msg.includes('roster_trade_requests_rate_mode_check') || msg.includes('rate_mode_check') || msg.includes('roster_trade_requests_t_mode_check') || msg.includes('trade_type_check')) return 'ยังส่งคำขอแลก/ขาย/ยกเวรไม่ได้ เพราะฐานข้อมูลยังไม่รองรับรูปแบบคำขอ/เรทที่เลือก กรุณา Run SQL Patch V40 ก่อน';
   if (msg.includes('row-level security')) return 'สิทธิ์ไม่พอสำหรับบันทึกข้อมูลนี้ กรุณาใช้บัญชี Admin หรืออินชาร์จที่ได้รับสิทธิ์';
   if (msg.includes('admin_upsert_leave_v32') || msg.includes('admin_upsert_leave_v31') || msg.includes('function public.admin_upsert_leave_v32') || msg.includes('function public.admin_upsert_leave_v31')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V32 ใน Supabase';
   if (msg.includes('admin_save_leave') || msg.includes('function public.admin_save_leave') || msg.includes('Could not find the function')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V32 ใน Supabase';
@@ -1484,7 +1484,7 @@ function showFairness() {
   const pays = Object.values(stats).map(x => x.pay || 0);
   const diff = hours.length ? Math.max(...hours) - Math.min(...hours) : 0;
   const payDiff = pays.length ? Math.max(...pays) - Math.min(...pays) : 0;
-  showModal(`<h2>ตรวจสมดุลการกระจายเวร ${state.monthKey}</h2><p class="hint">คิดตามกติกาจริง: ชบด วันธรรมดา 16 ชม., ชบด เสาร์/อาทิตย์/นักขัต 24 ชม., ช9 8 ชม., ช3A/ช3B 12 ชม., ช4 4 ชม. เรท MT 130/นักขัต 160 บ./ชม. และเคิก 90/นักขัต 120 บ./ชม. ถ้ามีการขาย/แลกเวรหลังประกาศ ให้ถือเป็นข้อตกลงระหว่างเจ้าหน้าที่</p><p class="hint">ส่วนต่างชั่วโมง ${diff.toFixed(1)} ชม. • ส่วนต่างเงินโดยประมาณ ${payDiff.toLocaleString()} บาท</p><div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชม.รวม</th><th>เงินประมาณ</th><th>หน่วยเวร</th><th>ชบด</th><th>ช9</th><th>ช3A/B</th><th>ช4</th><th>จันทร์</th><th>ศุกร์</th><th>วันหยุด/นักขัต</th></tr></thead><tbody>
+  showModal(`<h2>ตรวจสมดุลการกระจายเวร ${state.monthKey}</h2><p class="hint">คิดตามกติกาจริง: ชบด วันธรรมดา 16 ชม., ชบด เสาร์/อาทิตย์/นักขัต 24 ชม., ช9 8 ชม., ช3A/ช3B 12 ชม., ช4 4 ชม. เรท MT 130/นักขัต 160 บ./ชม. และเคิก 90/นักขัต 120 บ./ชม. ถ้ามีการแลก/ขาย/ยกเวรหลังประกาศ ให้ถือเป็นข้อตกลงระหว่างเจ้าหน้าที่</p><p class="hint">ส่วนต่างชั่วโมง ${diff.toFixed(1)} ชม. • ส่วนต่างเงินโดยประมาณ ${payDiff.toLocaleString()} บาท</p><div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชม.รวม</th><th>เงินประมาณ</th><th>หน่วยเวร</th><th>ชบด</th><th>ช9</th><th>ช3A/B</th><th>ช4</th><th>จันทร์</th><th>ศุกร์</th><th>วันหยุด/นักขัต</th></tr></thead><tbody>
     ${orderedStaff(state.staff.filter(s=>isRosterEnabled(s))).map(s => { const r = stats[s.id] || {}; return `<tr><td>${staffPill(s)}</td><td>${(r.hours||0).toFixed(1)}</td><td>${(r.pay||0).toLocaleString()}</td><td>${(r.units||0).toFixed(1)}</td><td>${r.chbd||0}</td><td>${r.ch9||0}</td><td>${r.ch3||0}</td><td>${r.ch4||0}</td><td>${r.mon||0}</td><td>${r.fri||0}</td><td>${r.weekend||0}</td></tr>`; }).join('')}
   </tbody></table></div>`);
 }
@@ -1518,7 +1518,7 @@ function renderTradeRequestsPage() {
   const related = state.tradeRequests.filter(r => isAdmin() || r.requester_id === currentStaffId() || r.receiver_id === currentStaffId());
   const pendingMine = related.filter(r => r.status === 'pending' && r.receiver_id === currentStaffId()).length;
   const waitingAdmin = related.filter(r => r.status === 'confirmed').length;
-  return `<div class="card"><div class="toolbar"><label>เดือน <input type="month" id="scheduleMonthInput" value="${state.monthKey}"></label>${badge(`รอฉันยืนยัน ${pendingMine}`, pendingMine ? 'orange' : 'black')}${badge(`รอ Admin ${waitingAdmin}`, waitingAdmin ? 'blue' : 'black')}</div><div class="notice soft-notice">คำขอแลก/ขายเวรจะแสดงที่นี่ เพื่อให้อีกฝ่ายกดยืนยัน และให้ Admin บันทึกเปลี่ยนตารางจริงหลังตกลงกันแล้ว</div>${renderDutyTradePanel(assignments)}</div>`;
+  return `<div class="card"><div class="toolbar"><label>เดือน <input type="month" id="scheduleMonthInput" value="${state.monthKey}"></label>${badge(`รอฉันยืนยัน ${pendingMine}`, pendingMine ? 'orange' : 'black')}${badge(`รอ Admin ${waitingAdmin}`, waitingAdmin ? 'blue' : 'black')}</div><div class="notice soft-notice">คำขอแลก/ขาย/ยกเวรจะแสดงที่นี่ เพื่อให้อีกฝ่ายกดยืนยัน และให้ Admin บันทึกเปลี่ยนตารางจริงหลังตกลงกันแล้ว</div>${renderDutyTradePanel(assignments)}</div>`;
 }
 
 function renderMonthlySchedulePage() {
@@ -1555,7 +1555,7 @@ function canRequestTrade(slot) {
 }
 function renderTradeButton(slot) {
   if (!canRequestTrade(slot)) return '';
-  return `<button class="tiny-btn trade-btn" data-trade-duty="${slot.id}">แลก/ขาย</button>`;
+  return `<button class="tiny-btn trade-btn" data-trade-duty="${slot.id}">แลก/ขาย/ยก</button>`;
 }
 function renderDutyTradePanel(assignments) {
   const monthRows = state.tradeRequests.filter(r => {
@@ -1563,8 +1563,8 @@ function renderDutyTradePanel(assignments) {
     return a || String(r.created_at || '').startsWith(state.monthKey);
   });
   const visible = isAdmin() ? monthRows : monthRows.filter(r => r.requester_id === currentStaffId() || r.receiver_id === currentStaffId());
-  if (!visible.length) return `<div class="trade-panel"><h3>คำขอแลก/ขายเวร</h3>${empty('ยังไม่มีคำขอแลก/ขายเวรในเดือนนี้')}</div>`;
-  return `<div class="trade-panel"><h3>คำขอแลก/ขายเวร</h3><div class="table-wrap desktop-table"><table><thead><tr><th>ผู้ขอ</th><th>ผู้รับ/คู่แลก</th><th>รายการ</th><th>เงินโดยประมาณ</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${visible.map(r => renderTradeRow(r, assignments)).join('')}</tbody></table></div>${renderTradeCards(visible, assignments)}</div>`;
+  if (!visible.length) return `<div class="trade-panel"><h3>คำขอแลก/ขาย/ยกเวร</h3>${empty('ยังไม่มีคำขอแลก/ขาย/ยกเวรในเดือนนี้')}</div>`;
+  return `<div class="trade-panel"><h3>คำขอแลก/ขาย/ยกเวร</h3><div class="table-wrap desktop-table"><table><thead><tr><th>ผู้ขอ</th><th>ผู้รับ/คู่แลก</th><th>รายการ</th><th>เงินโดยประมาณ</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${visible.map(r => renderTradeRow(r, assignments)).join('')}</tbody></table></div>${renderTradeCards(visible, assignments)}</div>`;
 }
 function renderTradeCards(rows, assignments) {
   return `<div class="mobile-cards trade-mobile-cards">${rows.map(r => {
@@ -1971,7 +1971,7 @@ function renderOtPage() {
       <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
       <p class="muted">${myDuty ? 'วันนี้มีชื่อคุณในตารางเวร กดยืนยันวันอยู่เวรได้' : 'วันนี้ยังไม่พบชื่อคุณในตารางเวร ถ้าต้องลงจริงให้ Admin ตรวจตารางก่อน'}</p>
       <button class="primary-btn" data-check-in ${(!myDuty && !isAdmin()) ? 'disabled' : ''}>ยืนยันวันอยู่เวร</button>
-      <div class="notice soft-notice gps-help"><b>การตั้งค่า GPS:</b> ใน config.js ให้ตั้ง GEOFENCE.enabled = true แล้วใส่ lat/lng จุดกลางของหน่วย และ radiusMeters เช่น 300–500 เมตร ช่วงทดสอบเปิดเป็น false ได้</div>
+      <div class="notice soft-notice gps-help"><b>การตั้งค่า GPS:</b> ใน config.js ตั้งพิกัด CNMI เป็น lat 13.52646, lng 100.76085 และเปิด GEOFENCE.enabled = true เมื่อใช้งานจริง</div>
       <p class="hint">ค่าปัจจุบัน: ${geo.enabled ? `เปิดใช้ GPS (${geo.lat || '-'}, ${geo.lng || '-'}) รัศมี ${geo.radiusMeters || 500} ม.` : 'ยังไม่บังคับพื้นที่ GPS'}<br>ถ้า iPhone ขึ้น User denied Geolocation ให้เข้า Safari > Website Settings > Location > Allow หรือเปิด Location Services ใน Settings</p>
     </div>
     <div class="card ot-card">
@@ -1989,7 +1989,7 @@ function renderOtPage() {
       ${renderOtTable(rows)}
     </div>
     <div class="card" style="grid-column:1/-1;">
-      <h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">ส่วนนี้เป็น OT ขอเพิ่มตาม Check-Out จริง ส่วนตารางเวรประจำเดือนใช้กติกาเงิน/ชั่วโมงของเวรตั้งต้นและคำขอแลก/ขายเวรแยกต่างหาก</p>${renderOtSummary()}
+      <h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">ส่วนนี้เป็น OT ขอเพิ่มตาม Check-Out จริง ส่วนตารางเวรประจำเดือนใช้กติกาเงิน/ชั่วโมงของเวรตั้งต้นและคำขอแลก/ขาย/ยกเวรแยกต่างหาก</p>${renderOtSummary()}
     </div>
   </div>`;
 }
@@ -2647,7 +2647,7 @@ function showGpsHelp(message) {
   showModal(`<h2>ยังยืนยันตำแหน่งไม่ได้</h2>
     <div class="notice soft-notice"><b>${escapeHtml(message || 'ไม่สามารถอ่าน GPS ได้')}</b></div>
     <p class="hint">วิธีแก้บน iPhone/Safari: กดไอคอนหน้า URL หรือ aA > Website Settings > Location > Allow แล้ว Refresh หน้าเว็บ</p>
-    <p class="hint">ถ้าอยู่ช่วงทดสอบ ให้ตั้งค่าใน config.js: <b>GEOFENCE.enabled = false</b> ก่อน หรือถ้าจะใช้จริง ให้ใส่ lat/lng จุดกลางหน่วย และ radiusMeters เช่น 300–500 เมตร</p>
+    <p class="hint">ถ้าอยู่ช่วงทดสอบ ให้ตั้งค่าใน config.js: <b>GEOFENCE.enabled = false</b> ก่อน หรือถ้าจะใช้จริง ให้ตั้ง CNMI: <b>lat 13.52646, lng 100.76085</b> และ radiusMeters เช่น 500 เมตร</p>
     <div class="table-wrap compact-detail-table"><table><tbody><tr><td>สถานะ GPS ในระบบ</td><td>${geo.enabled ? 'เปิดใช้การตรวจพื้นที่' : 'ยังไม่บังคับพื้นที่'}</td></tr><tr><td>พิกัดที่ตั้งไว้</td><td>${escapeHtml(String(geo.lat || '-'))}, ${escapeHtml(String(geo.lng || '-'))}</td></tr><tr><td>รัศมี</td><td>${escapeHtml(String(geo.radiusMeters || 500))} เมตร</td></tr></tbody></table></div>`);
 }
 function getGps() {
@@ -2810,15 +2810,15 @@ function showTradeModal(assignmentId) {
     .filter(a => a.staff_id && a.staff_id !== slot.staff_id)
     .map(a => `<option data-owner="${a.staff_id}" value="${a.id}">${staffNick(a.staff_id)} — ${formatThaiDate(a.duty_date)} ${DUTY_LABEL[a.duty_code] || a.duty_code} (${dutyMetrics(a).pay.toLocaleString()} บ.)</option>`)
     .join('');
-  showModal(`<h2>ขอแลก/ขายเวร</h2><p class="hint">${formatThaiDate(slot.duty_date)} ${DUTY_LABEL[slot.duty_code] || slot.duty_code} • เจ้าของเวรเดิม ${staffPill(slot.staff_id)} • มูลค่าเวรเดิมประมาณ ${myAmount.toLocaleString()} บาท</p>
+  showModal(`<h2>ขอแลก/ขาย/ยกเวร</h2><p class="hint">${formatThaiDate(slot.duty_date)} ${DUTY_LABEL[slot.duty_code] || slot.duty_code} • เจ้าของเวรเดิม ${staffPill(slot.staff_id)} • มูลค่าเวรเดิมประมาณ ${myAmount.toLocaleString()} บาท</p>
     <form id="dutyTradeForm" class="form-grid">
       <input type="hidden" name="from_assignment_id" value="${slot.id}">
-      <label>ประเภท <select name="trade_type" id="tradeTypeSelect"><option>ขายเวร</option><option>แลกเวร</option></select></label>
+      <label>ประเภท <select name="trade_type" id="tradeTypeSelect"><option value="ขายเวร">ขายเวร / เบิก OT ผ่าน HR</option><option value="ยกเวร">ยกเวร / ให้เวรอีกคนไปเลย</option><option value="แลกเวร">แลกเวร</option></select></label>
       <label>คนที่จะรับ/คู่แลก <select name="receiver_id" id="tradeReceiverSelect" required><option value="">เลือกคน</option>${possibleReceiver.map(s => `<option value="${s.id}">${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select></label>
-      <label class="wide trade-swap-only" id="tradeSwapWrap" style="display:none">กรณีแลกเวรเท่านั้น: เลือกเวรของคู่แลก <select name="to_assignment_id" id="tradeSwapSelect"><option value="">เลือกเวรของคู่แลก</option>${otherDutyOptions}</select><span class="hint">ถ้าเป็นขายเวร ไม่ต้องเลือกวันที่/เวรซ้ำ ระบบใช้เวรที่กดมาให้อัตโนมัติ</span></label>
-      <label>คิดเรท <select name="rate_mode"><option value="mt">เรท MT</option><option value="kerk">เรทเคิก</option><option value="custom">ตกลงกันเอง</option></select><span class="hint">เลือกแค่เรทหลักพอ ถ้าตกลงกันเองให้กรอกจำนวนเงิน</span></label>
-      <label>จำนวนเงินตกลงเอง (ถ้ามี) <input name="custom_amount" type="number" min="0" step="1" placeholder="ไม่บังคับ"></label>
-      <label class="wide">หมายเหตุ <textarea name="note" placeholder="เช่น ขายเป็นเรทเคิก / แลกเวรกับเพื่อน / ตกลงกันแล้ว"></textarea></label>
+      <label class="wide trade-swap-only" id="tradeSwapWrap" style="display:none">กรณีแลกเวรเท่านั้น: เลือกเวรของคู่แลก <select name="to_assignment_id" id="tradeSwapSelect"><option value="">เลือกเวรของคู่แลก</option>${otherDutyOptions}</select><span class="hint">ถ้าเป็นขายเวร/ยกเวร ไม่ต้องเลือกวันที่/เวรซ้ำ ระบบใช้เวรที่กดมาให้อัตโนมัติ</span></label>
+      <label id="tradeRateWrap">คิดเรท <select name="rate_mode"><option value="mt">เรท MT</option><option value="kerk">เรทเคิก</option><option value="custom">ตกลงกันเอง / จ่ายกันเอง</option></select><span class="hint">ขายเวร = ใช้เรท MT/เคิก เพื่อเบิก OT หรือเลือกตกลงกันเองถ้าน้องจ่ายกันเอง</span></label>
+      <label id="tradeCustomWrap">จำนวนเงินตกลงเอง (ถ้ามี) <input name="custom_amount" type="number" min="0" step="1" placeholder="ไม่บังคับ"></label>
+      <label class="wide">หมายเหตุ <textarea name="note" placeholder="เช่น ขายเป็นเรทเคิก / ยกเวรให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว"></textarea></label>
       <button class="primary-btn wide" type="submit">ส่งคำขอให้อีกฝ่ายยืนยัน</button>
     </form>`);
   updateTradeSwapVisibility();
@@ -2826,8 +2826,12 @@ function showTradeModal(assignmentId) {
 function updateTradeSwapVisibility() {
   const type = document.getElementById('tradeTypeSelect')?.value || '';
   const wrap = document.getElementById('tradeSwapWrap');
+  const rateWrap = document.getElementById('tradeRateWrap');
+  const customWrap = document.getElementById('tradeCustomWrap');
   if (!wrap) return;
   wrap.style.display = type === 'แลกเวร' ? '' : 'none';
+  if (rateWrap) rateWrap.style.display = type === 'ยกเวร' ? 'none' : '';
+  if (customWrap) customWrap.style.display = type === 'ยกเวร' ? 'none' : '';
   if (type !== 'แลกเวร') {
     const sel = document.getElementById('tradeSwapSelect');
     if (sel) sel.value = '';
@@ -2840,14 +2844,15 @@ async function saveTradeRequest(form) {
   const from = getAssignmentsForMonth(state.monthKey).find(a => a.id === fromId);
   const to = fd.get('to_assignment_id') ? getAssignmentsForMonth(state.monthKey).find(a => a.id === fd.get('to_assignment_id')) : null;
   if (!from || !receiverId) return showToast('กรุณาเลือกผู้รับ/คู่แลกให้ครบ');
-  if ((fd.get('trade_type') || '') === 'แลกเวร' && !fd.get('to_assignment_id')) return showToast('ถ้าเลือกแลกเวร กรุณาเลือกเวรของคู่แลกด้วย');
+  const tradeType = fd.get('trade_type') || 'ขายเวร';
+  if (tradeType === 'แลกเวร' && !fd.get('to_assignment_id')) return showToast('ถ้าเลือกแลกเวร กรุณาเลือกเวรของคู่แลกด้วย');
   const rateMode = fd.get('rate_mode') || 'mt';
   const custom = Number(fd.get('custom_amount') || 0);
-  const amountFrom = rateMode === 'custom' ? custom : tradeRateAmount(from, receiverId, rateMode);
+  const amountFrom = tradeType === 'ยกเวร' ? 0 : (rateMode === 'custom' ? custom : tradeRateAmount(from, receiverId, rateMode));
   const amountTo = to ? (rateMode === 'custom' ? 0 : dutyMetrics(to, from.staff_id).pay) : 0;
   const row = {
     requester_id: currentStaffId(), receiver_id: receiverId, from_assignment_id: fromId, to_assignment_id: to?.id || null,
-    trade_type: fd.get('trade_type') || 'ขายเวร', rate_mode: rateMode, amount_from: amountFrom, amount_to: amountTo, amount_diff: amountFrom - amountTo,
+    trade_type: tradeType, rate_mode: rateMode, amount_from: amountFrom, amount_to: amountTo, amount_diff: amountFrom - amountTo,
     status: 'pending', note: fd.get('note') || null, created_by: currentStaffId(), updated_by: currentStaffId()
   };
   const { error } = await sb.from('roster_trade_requests').insert(row);
@@ -2904,7 +2909,7 @@ function tableLabel(table) {
   return ({
     auth: 'ระบบ Login', staff_profiles: 'ผู้ใช้งานและสิทธิ์', leave_requests: 'แจ้งลา/ไม่รับเวร', activity_events: 'กิจกรรมหน่วยงาน',
     hr_checks: 'ตรวจสอบ HR', roster_months: 'สถานะตารางเวร', roster_assignments: 'ตารางเวร', daily_positions: 'ตารางตำแหน่งรายวัน',
-    attendance_logs: 'ลงชื่อเข้าเวร', ot_requests: 'OT', public_holidays: 'วันหยุดราชการ', monthly_incharges: 'อินชาร์จประจำเดือน', daily_position_eligibility: 'สิทธิ์ตำแหน่งรายวัน', daily_position_day_status: 'ประกาศตำแหน่งรายวัน', roster_trade_requests: 'คำขอแลก/ขายเวร'
+    attendance_logs: 'ลงชื่อเข้าเวร', ot_requests: 'OT', public_holidays: 'วันหยุดราชการ', monthly_incharges: 'อินชาร์จประจำเดือน', daily_position_eligibility: 'สิทธิ์ตำแหน่งรายวัน', daily_position_day_status: 'ประกาศตำแหน่งรายวัน', roster_trade_requests: 'คำขอแลก/ขาย/ยกเวร'
   }[table] || table || '-');
 }
 function auditSummary(a) {
