@@ -1251,16 +1251,18 @@ function renderLeaveTable(rows) {
   return table + cards;
 }
 function canEditOwn(row) {
-  if (isAdmin()) return true;
+  if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return true;
   return row.staff_id === currentStaffId() && row.status !== 'cancelled' && !isRosterLockedForDate(row.start_date);
 }
 function isRosterLockedForDate(date) {
+  if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return false;
   const d = parseDate(date);
-  const m = state.rosterMonths.find(x => x.year === d.getFullYear() && x.month === d.getMonth()+1);
-  if (m?.status === 'locked' || m?.status === 'published') return true;
-  const closeDay = CFG.ROSTER_CLOSE_DAY || 20;
-  const close = new Date(d.getFullYear(), d.getMonth()-1, closeDay, 23,59,59);
-  return new Date() > close;
+  const now = new Date();
+  const isCurrentMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  if (!isCurrentMonth) return false;
+  const closeDay = Number(CFG.CURRENT_MONTH_CLOSE_DAY || CFG.ROSTER_CLOSE_DAY || 5);
+  const close = new Date(d.getFullYear(), d.getMonth(), closeDay, 23, 59, 59);
+  return now > close;
 }
 
 
@@ -2291,6 +2293,9 @@ async function saveLeave(form) {
   }
   if (row.end_date < row.start_date) return showToast('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม');
   const requestedDates = datesBetween(row.start_date, row.end_date);
+  if (!isAdmin() && requestedDates.some(isRosterLockedForDate)) {
+    return showToast('พ้นกำหนดแก้ไขรายการลา/ไม่รับเวรของเดือนนี้แล้ว กรุณาแจ้งอินชาร์จหรือหัวหน้าให้บันทึกแทน');
+  }
   const hasPublishedDay = requestedDates.some(positionDayPublished);
   if (hasPublishedDay && !isAdmin()) {
     row.note = [row.note, '[ระบบเตือน] วันที่ขอลามีการประกาศตารางตำแหน่งแล้ว กรุณาแจ้งอินชาร์จหรือหัวหน้า'].filter(Boolean).join(' | ');
