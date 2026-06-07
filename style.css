@@ -857,3 +857,26 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 520px) {
   .profile-info-list > div { grid-template-columns: 1fr; gap: 3px; }
 }
+
+/* V59 hotfix: simple centered GPS status modal */
+.modal-status-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px auto;
+  font-size: 34px;
+  font-weight: 900;
+}
+.modal-status-icon.error {
+  background: #ffe8ea;
+  color: #d9485f;
+}
+.modal-message {
+  text-align: center;
+  color: #6b7a90;
+  font-size: 16px;
+  line-height: 1.55;
+  margin: 4px 0 10px;
+}
