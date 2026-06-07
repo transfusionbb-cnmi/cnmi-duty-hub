@@ -11,7 +11,7 @@ window.CNMI_CONFIG = {
   // Apps Script Web App URL ใช้เฉพาะงาน admin/backup ที่ต้องถือ secret ฝั่ง server
   APP_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz6VKNkIM4vf0XbjebrBSNXun_WTyA0qOyNO6OphGCb3NQ7V3_ORrDMN-100taNSfFUsw/exec',
 
-  // ปรับพิกัดหน่วยงานจริงแล้ว เพื่อใช้ Check-In / OT geofence ถ้ายังทดสอบนอกโรงพยาบาล ให้ใช้:enabled: false แทน แต่ถ้าจะใช้จริงในพื้นที่โรงพยาบาล ให้เป็น true ได้เลย
+  // พิกัดโรงพยาบาลรามาธิบดีจักรีนฤบดินทร์ สำหรับยืนยันวันอยู่เวร / ขอ OT เพิ่ม / ถ้ายังทดสอบนอกโรงพยาบาล ให้ใช้:enabled: false แทน แต่ถ้าจะใช้จริงในพื้นที่โรงพยาบาล ให้เป็น true ได้เลย
   GEOFENCE: {
     enabled: true,
     lat: 13.52646,
@@ -19,8 +19,10 @@ window.CNMI_CONFIG = {
     radiusMeters: 500
   },
 
-    // Staff ปิดรับแก้ลา/ไม่รับเวรของเดือนปัจจุบัน ตั้งแต่วันที่ 5 เวลา 23:59
-    CURRENT_MONTH_CLOSE_DAY: 5,
+  // Staff ปิดรับแก้ลา/ไม่รับเวรของเดือนปัจจุบัน ตั้งแต่วันที่ 5 เวลา 23:59
+  CURRENT_MONTH_CLOSE_DAY: 5,
 
-    // Admin สามารถเพิ่ม/แก้/ยกเลิก/ลบ รายการลาแทน staff ได้เสมอ
-    ADMIN_BYPASS_LEAVE_CLOSE_RULE: true
+  // Admin สามารถเพิ่ม/แก้/ยกเลิก/ลบ รายการลาแทน staff ได้เสมอ
+  ADMIN_BYPASS_LEAVE_CLOSE_RULE: true
+};
+
