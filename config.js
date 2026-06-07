@@ -11,13 +11,13 @@ window.CNMI_CONFIG = {
   // Apps Script Web App URL ใช้เฉพาะงาน admin/backup ที่ต้องถือ secret ฝั่ง server
   APP_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz6VKNkIM4vf0XbjebrBSNXun_WTyA0qOyNO6OphGCb3NQ7V3_ORrDMN-100taNSfFUsw/exec',
 
-  // ปรับพิกัดหน่วยงานจริงหลังติดตั้ง เพื่อใช้ Check-In / OT geofence
+  // ปรับพิกัดหน่วยงานจริงแล้ว เพื่อใช้ Check-In / OT geofence
   GEOFENCE: {
-    enabled: false,
-    lat: 13.7563,
-    lng: 100.5018,
+    enabled: true,
+    lat: 13.52646,
+    lng: 100.76085,
     radiusMeters: 500
-  },
+  }
 
   // ปิดรับแก้วันลา/ไม่รับเวรของเดือนถัดไป เช่น วันที่ 20 เวลา 23:59
   ROSTER_CLOSE_DAY: 20
