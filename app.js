@@ -304,11 +304,19 @@ function authRedirectUrl(mode='') {
   return mode ? `${base}?mode=${encodeURIComponent(mode)}` : base;
 }
 
-function showToast(msg) {
-  const toast = $('toast');
-  toast.textContent = msg;
-  toast.classList.remove('hidden');
-  setTimeout(() => toast.classList.add('hidden'), 2600);
+function showToast(msg, opts={}) {
+  // V51: ใช้ Pop-up กลางจอแทน toast ล่างจอ เพื่อให้ผู้ใช้งานรู้ชัดว่าระบบบันทึก/แจ้งผลแล้ว
+  const text = String(msg || 'ดำเนินการเรียบร้อย');
+  const tone = opts.tone || (/(ไม่สำเร็จ|ผิดพลาด|error|กรุณา|ไม่ได้|ไม่พบ|สิทธิ์ไม่พอ|ล้มเหลว)/i.test(text) ? 'error' : 'success');
+  const title = opts.title || (tone === 'error' ? 'แจ้งเตือน' : 'สำเร็จ');
+  showModal(`
+    <div class="app-alert ${tone}">
+      <div class="app-alert-icon">${tone === 'error' ? '!' : '✓'}</div>
+      <h2>${escapeHtml(title)}</h2>
+      <p>${escapeHtml(text)}</p>
+      <div class="confirm-actions"><button class="primary-btn" data-app-alert-ok>ตกลง</button></div>
+    </div>
+  `, { small:true });
 }
 function friendlyDbError(error) {
   const msg = String(error?.message || error || '');
@@ -343,12 +351,26 @@ function showModal(html, opts={}) {
 function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('modal-sm','modal-lg'); $('modalBody').innerHTML = ''; document.body.classList.remove('modal-open'); }
 function confirmDialog(message, title='ยืนยันการทำรายการ') {
   return new Promise(resolve => {
-    showModal(`<div class="confirm-box"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><div class="confirm-actions"><button class="ghost-btn" data-confirm-no>ยกเลิก</button><button class="primary-btn" data-confirm-yes>ตกลง</button></div></div>`, { small:true });
+    showModal(`<div class="confirm-box app-confirm"><div class="app-alert-icon warn">?</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><div class="confirm-actions"><button class="ghost-btn" data-confirm-no>ยกเลิก</button><button class="primary-btn" data-confirm-yes>ตกลง</button></div></div>`, { small:true });
     const modal = $('modal');
     const cleanup = (answer) => { modal.removeEventListener('click', onClick); closeModal(); resolve(answer); };
     const onClick = (e) => {
       if (e.target.closest('[data-confirm-yes]')) cleanup(true);
       if (e.target.closest('[data-confirm-no]') || e.target.id === 'modalClose') cleanup(false);
+    };
+    modal.addEventListener('click', onClick);
+  });
+}
+function promptDialog(message, title='กรอกข้อมูลเพิ่มเติม', defaultValue='') {
+  return new Promise(resolve => {
+    showModal(`<div class="confirm-box app-confirm"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><textarea id="promptDialogInput" class="dialog-textarea" placeholder="ถ้ามี">${escapeHtml(defaultValue || '')}</textarea><div class="confirm-actions"><button class="ghost-btn" data-prompt-cancel>ยกเลิก</button><button class="primary-btn" data-prompt-ok>บันทึก</button></div></div>`, { small:true });
+    const modal = $('modal');
+    const input = $('promptDialogInput');
+    setTimeout(() => input?.focus(), 50);
+    const cleanup = (value) => { modal.removeEventListener('click', onClick); closeModal(); resolve(value); };
+    const onClick = (e) => {
+      if (e.target.closest('[data-prompt-ok]')) cleanup(input?.value || '');
+      if (e.target.closest('[data-prompt-cancel]') || e.target.id === 'modalClose') cleanup(null);
     };
     modal.addEventListener('click', onClick);
   });
@@ -757,10 +779,15 @@ async function loadProfileChangeRequests() {
   const rows = [];
   const addRows = (arr) => (arr || []).forEach(r => { if (r && !rows.some(x => x.id === r.id)) rows.push(r); });
 
-  // V50: ใช้ RPC เดียวที่เป็น security definer ก่อน เพื่อลด 404/blank จาก RLS และ function รุ่นเก่า
+  // V51: ไล่เรียก RPC หลายรุ่น + direct query สำรอง เพื่อแก้เคสข้อมูลเข้า Supabase แล้วแต่หน้าเว็บไม่แสดง
   const attempts = [
+    () => sb.rpc('list_profile_change_requests_v51', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
     () => sb.rpc('list_profile_change_requests_v50', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
-    () => sb.from('profile_change_requests').select('*').order('created_at', { ascending:false })
+    () => sb.rpc('list_profile_change_requests_v49', { p_staff_id: staffId, p_user_email: email, p_is_admin: isAdmin() }),
+    () => sb.rpc('list_profile_change_requests_v47', { p_staff_id: staffId, p_is_admin: isAdmin() }),
+    () => isAdmin()
+      ? sb.from('profile_change_requests').select('*').order('created_at', { ascending:false })
+      : sb.from('profile_change_requests').select('*').or(`staff_id.eq.${staffId},requested_by.eq.${staffId}`).order('created_at', { ascending:false })
   ];
   for (const fn of attempts) {
     try {
@@ -1336,7 +1363,8 @@ function isBackdatedForStaff(date) {
 
 function renderMyProfilePage() {
   const p = state.profile || {};
-  const myReqs = (state.profileChangeRequests || []).filter(r => r.staff_id === currentStaffId()).slice(0, 10);
+  const myId = currentStaffId();
+  const myReqs = (state.profileChangeRequests || []).filter(r => r.staff_id === myId || r.requested_by === myId).slice(0, 10);
   return `<div class="grid grid-2">
     <div class="card">
       <div class="section-title"><div><h3>ข้อมูลส่วนตัว</h3><p class="hint">ข้อมูลจริงใช้จากตารางผู้ใช้งาน ถ้าต้องการแก้ ให้ส่งคำขอให้ Admin อนุมัติ</p></div></div>
@@ -2322,6 +2350,7 @@ async function handleSubmit(e) {
 async function handleClick(e) {
   const t = e.target.closest('button, [data-day-detail], [data-staff-stat]');
   if (!t) return;
+  if (t.hasAttribute('data-app-alert-ok')) { closeModal(); return; }
   if (t.dataset.page) { state.page = t.dataset.page; $('sidebar').classList.remove('open'); document.body.classList.remove('sidebar-open'); renderPage(); return; }
   if (t.dataset.calView) { state.calendarView = t.dataset.calView; renderPage(); return; }
   if (t.dataset.calNav) { calendarNav(t.dataset.calNav); renderPage(); return; }
@@ -2727,7 +2756,7 @@ function isWeekend(date) { const d = parseDate(date).getDay(); return d === 0 ||
 async function clearRosterMonth() {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
   const key = state.monthKey;
-  if (!confirm(`ล้างตารางเวรเดือน ${key} ทั้งหมดหรือไม่?`)) return;
+  if (!(await confirmDialog(`ล้างตารางเวรเดือน ${key} ทั้งหมดหรือไม่?`, 'ยืนยันล้างข้อมูล'))) return;
   const { y, m } = getMonthRange(key);
   const month = state.rosterMonths.find(x => x.year === y && x.month === m);
   if (month?.id) {
@@ -2745,7 +2774,7 @@ async function clearRosterMonth() {
 async function clearMonthlyPositions() {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
   const key = state.positionMonthKey || state.monthKey;
-  if (!confirm(`ล้างแผนตำแหน่งรายเดือน ${key} ทั้งหมดหรือไม่?`)) return;
+  if (!(await confirmDialog(`ล้างแผนตำแหน่งรายเดือน ${key} ทั้งหมดหรือไม่?`, 'ยืนยันล้างข้อมูล'))) return;
   const { start, end } = getMonthRange(key);
   const del = await sb.from('daily_positions').delete().gte('work_date', start).lte('work_date', end);
   if (del.error) return showToast(friendlyDbError(del.error));
@@ -2970,7 +2999,7 @@ async function reviewProfileChangeRequest(id, status) {
   if (!req) return showToast('ไม่พบคำขอ');
   let note = '';
   if (status === 'rejected') {
-    note = prompt('เหตุผลที่ไม่อนุมัติ (ถ้ามี)', '') || '';
+    note = await promptDialog('เหตุผลที่ไม่อนุมัติ (ถ้ามี)', 'ไม่อนุมัติคำขอ') || '';
   }
   setBusy(true, 'กำลังบันทึกผลตรวจ');
   const { error } = await sb.rpc('review_profile_change_request_v47', {

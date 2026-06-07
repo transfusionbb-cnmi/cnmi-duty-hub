@@ -769,3 +769,17 @@ body.modal-open { overflow: hidden; }
   .users-page-v49 .admin-user-form { grid-template-columns: 1fr; }
   .users-page-v49 .selected-staff-card { margin-bottom: 10px; }
 }
+
+/* V51: app-like centered messages for every save/error/confirm */
+.app-alert, .app-confirm { text-align:center; padding: 8px 4px 2px; }
+.app-alert-icon { width: 58px; height: 58px; border-radius: 22px; display:inline-grid; place-items:center; margin: 0 auto 12px; font-size: 30px; font-weight: 900; background:#dff4e7; color:#14804a; }
+.app-alert.error .app-alert-icon { background:#ffe8ea; color:#c6364a; }
+.app-alert-icon.warn { background:#fff4d7; color:#9b6a00; }
+.app-alert h2, .app-confirm h2 { margin: 4px 0 8px; font-size: 24px; }
+.app-alert p, .app-confirm p { margin: 0 auto 18px; color: var(--muted); line-height: 1.55; max-width: 460px; }
+.dialog-textarea { width:100%; min-height:96px; border:1px solid var(--line); border-radius:16px; padding:12px 14px; font:inherit; resize:vertical; margin: 8px 0 14px; }
+.app-alert .confirm-actions, .app-confirm .confirm-actions { justify-content:center; }
+@media (max-width: 720px) {
+  .app-alert h2, .app-confirm h2 { font-size: 21px; }
+  .app-alert p, .app-confirm p { font-size: 15px; }
+}
