@@ -302,36 +302,36 @@
     };
   }
   if (typeof requestPasswordSetupLink === 'function') {
-    window.requestPasswordSetupLink = requestPasswordSetupLink = async function requestPasswordSetupLinkV72(email){
+    window.requestPasswordSetupLink = requestPasswordSetupLink = async function requestPasswordSetupLinkV73(email){
+      const cleanEmail = String(email || '').trim().toLowerCase();
       const redirectTo = authRedirectUrl('recovery');
-      // ตรวจ staff profile ก่อนเสมอ เพื่อไม่ส่งลิงก์ให้คนที่ไม่อยู่ในระบบ
-      try {
-        const { data: profile, error: profileError } = await sb
-          .from('staff_profiles')
-          .select('id,email,is_active')
-          .ilike('email', email)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        if (!profile || profile.is_active === false) return { ok:true, skipped:true };
-      } catch (err) {
-        // ถ้า anon/RLS อ่านไม่ได้ ให้ Apps Script เป็นตัวตรวจแทน
-        console.warn('[V72] profile precheck skipped:', err?.message || err);
-      }
-      // ใช้ Supabase official reset link ก่อน เพราะ token/redirect จะตรงกับโปรเจกต์ปัจจุบันที่สุด
-      const direct = await sb.auth.resetPasswordForEmail(email, { redirectTo });
-      if (!direct.error) return { ok:true, sentBy:'Supabase' };
-      // ถ้า Auth user ยังไม่มี จึง fallback ไป Apps Script เดิมให้สร้าง/ส่งลิงก์
+
+      // V73 FIX: ต้องให้ Apps Script เป็นทางหลักเสมอ
+      // เพราะ Supabase resetPasswordForEmail อาจตอบว่าสำเร็จแม้ยังไม่มี Auth user
+      // ทำให้ผู้ใช้เห็น Pop-up สำเร็จ แต่ไม่มีอีเมลเข้า
       if (CFG.APP_SCRIPT_URL) {
         const res = await fetch(CFG.APP_SCRIPT_URL, {
           method:'POST',
           headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action:'requestPasswordLink', email, redirectTo })
+          body: JSON.stringify({ action:'requestPasswordLink', email: cleanEmail, redirectTo })
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.ok === false) throw new Error(data.message || direct.error.message || 'ส่งลิงก์ไม่สำเร็จ');
-        return data;
+        if (!res.ok || data.ok === false) throw new Error(data.message || 'ส่งลิงก์ตั้งรหัสผ่านไม่สำเร็จ');
+        return { ok:true, sentBy: data.sentBy || 'MailApp', ...data };
       }
-      throw direct.error;
+
+      // กรณีไม่มี Apps Script URL: ใช้ Supabase ได้เฉพาะคนที่มี Auth user อยู่แล้ว
+      const { data: profile, error: profileError } = await sb
+        .from('staff_profiles')
+        .select('id,email,is_active')
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile || profile.is_active === false) throw new Error('ไม่พบอีเมลนี้ในรายชื่อเจ้าหน้าที่ หรือบัญชีถูกปิดใช้งาน');
+
+      const direct = await sb.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+      if (direct.error) throw direct.error;
+      return { ok:true, sentBy:'Supabase' };
     };
   }
   if (typeof resetUserPassword === 'function') {
