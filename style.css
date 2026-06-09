@@ -1061,3 +1061,63 @@ body.cnmi-sidebar-hidden .main-panel{grid-column:1 / -1!important;width:100%!imp
     display: none !important;
   }
 }
+
+/* V109: roster Excel table + OT polish */
+.excel-roster-table-v109 {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.excel-roster-table-v109 tbody tr { height: 56px; }
+.excel-roster-table-v109 th.staff-name-cell,
+.excel-roster-table-v109 td {
+  height: 56px;
+  min-height: 56px;
+  vertical-align: middle;
+}
+.excel-roster-table-v109 th.staff-name-cell {
+  padding: 6px 8px;
+  line-height: 1.1;
+}
+.excel-roster-table-v109 th.staff-name-cell b {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.excel-roster-table-v109 th.staff-name-cell small { display: none !important; }
+.excel-roster-table-v109 .excel-duty-cell-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  height: 100%;
+  padding: 2px 4px;
+  line-height: 1.15;
+  font-size: 13px;
+  overflow: hidden;
+}
+.excel-roster-table-v109 .leave-cell .excel-duty-cell-btn {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.old-duty-tabs-v109 {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.old-duty-table-v109 > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #2b7bbd;
+}
+.ot-page .gps-help { display: none !important; }
+@media (max-width: 820px) {
+  .excel-roster-table-v109 tbody tr,
+  .excel-roster-table-v109 th.staff-name-cell,
+  .excel-roster-table-v109 td { height: 50px; min-height: 50px; }
+  .excel-roster-table-v109 .excel-duty-cell-btn { min-height: 44px; font-size: 12px; }
+  .excel-roster-table-v109 .leave-cell .excel-duty-cell-btn { font-size: 10px; }
+}
