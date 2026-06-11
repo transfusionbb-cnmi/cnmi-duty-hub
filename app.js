@@ -273,22 +273,48 @@ function appBaseUrl() {
   return `${window.location.origin}/`;
 }
 function getAuthRedirectInfo(raw = INITIAL_AUTH_URL) {
-  const text = String(raw || '');
-  const params = new URLSearchParams(text.replace(/^#/, '').replace(/^\?/, ''));
-  // URLSearchParams cannot parse mixed ?a=1#b=2 in one go, so parse both sides separately too.
+  const text = String(raw || `${window.location.search || ''}${window.location.hash || ''}`);
+
+  // V133: parse query and hash separately. Supabase links can arrive as
+  // ?code=..., #access_token=..., #type=recovery, or mixed forms after GitHub Pages 404 fallback.
   const searchParams = new URLSearchParams(window.location.search || '');
-  const hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
-  const get = (k) => params.get(k) || searchParams.get(k) || hashParams.get(k) || '';
+  const hashText = String(window.location.hash || '').replace(/^#/, '');
+  const hashParams = new URLSearchParams(hashText);
+  const rawParams = new URLSearchParams(text.replace(/^#/, '').replace(/^\?/, '').replace('#', '&'));
+
+  const get = (k) => rawParams.get(k) || searchParams.get(k) || hashParams.get(k) || '';
   const type = get('type');
   const mode = get('mode');
-  const hasToken = /(^|[?#&])(access_token|refresh_token|code|token_hash)=/.test(text);
-  const isRecovery = /^(recovery|password_recovery|invite)$/i.test(type) || /^(recovery|set-password)$/i.test(mode) || hasToken;
+  const hasToken = /(^|[?#&])(access_token|refresh_token|code|token_hash)=/i.test(text);
+  const isRecovery = /^(recovery|password_recovery|invite)$/i.test(type)
+    || /^(recovery|set-password|update-password)$/i.test(mode)
+    || hasToken;
   const error = get('error') || get('error_code') || '';
   const errorDescription = get('error_description') || '';
   return { text, type, mode, hasToken, isRecovery, error, errorDescription, hasError: Boolean(error || errorDescription) };
 }
 const INITIAL_AUTH_INFO = getAuthRedirectInfo();
-let RECOVERY_INTENT = INITIAL_AUTH_INFO.isRecovery && !INITIAL_AUTH_INFO.hasError;
+
+// V134: Force password setup mode as early as possible.
+// Supabase email links may temporarily create a valid session (SIGNED_IN) before PASSWORD_RECOVERY fires.
+// Without this flag, the normal auth guard can treat the session as a complete login and enter the app.
+const PASSWORD_SETUP_FORCE_KEY = 'cnmi.forcePasswordSetup.v134';
+function setPasswordSetupForced(reason='auth-link') {
+  try { window.sessionStorage.setItem(PASSWORD_SETUP_FORCE_KEY, JSON.stringify({ reason, at: Date.now() })); } catch (_) {}
+}
+function clearPasswordSetupForced() {
+  try { window.sessionStorage.removeItem(PASSWORD_SETUP_FORCE_KEY); } catch (_) {}
+}
+function isPasswordSetupForced() {
+  try { return window.sessionStorage.getItem(PASSWORD_SETUP_FORCE_KEY) === '1' || !!window.sessionStorage.getItem(PASSWORD_SETUP_FORCE_KEY); } catch (_) { return false; }
+}
+if (INITIAL_AUTH_INFO.isRecovery && !INITIAL_AUTH_INFO.hasError) setPasswordSetupForced('initial-auth-url');
+
+let RECOVERY_INTENT = (INITIAL_AUTH_INFO.isRecovery || isPasswordSetupForced()) && !INITIAL_AUTH_INFO.hasError;
+// V133: True while Supabase is still converting the email-link hash/query into a session.
+// Auth guard must not send the user to normal login during this window.
+let AUTH_LINK_PROCESSING = RECOVERY_INTENT;
+let AUTH_URL_CLEANED = false;
 function cleanAuthUrl(keepRecoveryMode=false) {
   if (!window.history?.replaceState) return;
   const clean = keepRecoveryMode ? `${appBaseUrl()}?mode=recovery` : appBaseUrl();
@@ -297,22 +323,50 @@ function cleanAuthUrl(keepRecoveryMode=false) {
 async function handleInitialAuthRedirectOnce() {
   const info = getAuthRedirectInfo();
   if (!info.text) return true;
+
   if (info.hasError) {
     clearCachedAppSession();
     try { await sb?.auth?.signOut(); } catch (_) {}
     RECOVERY_INTENT = false;
+    AUTH_LINK_PROCESSING = false;
     cleanAuthUrl(false);
     const msg = decodeURIComponent(String(info.errorDescription || info.error || 'ลิงก์เข้าสู่ระบบหมดอายุหรือไม่สมบูรณ์ กรุณาขอลิงก์ใหม่อีกครั้ง').replace(/\+/g, ' '));
     showLoginPanel();
     showToast(msg.includes('expired') ? 'ลิงก์หมดอายุหรือถูกใช้ไปแล้ว กรุณาขอลิงก์ตั้งรหัสผ่านใหม่อีกครั้ง' : msg, { tone:'error' });
     return false;
   }
+
   if (info.isRecovery || info.hasToken) {
+    setPasswordSetupForced('auth-link-detected');
     RECOVERY_INTENT = true;
-    // Keep only mode=recovery so the reset form remains visible, but remove access_token/code from the address bar.
-    cleanAuthUrl(true);
+    AUTH_LINK_PROCESSING = true;
+    // V133 IMPORTANT: do NOT clean URL here. Supabase must read #access_token / ?code first.
+    // The URL is cleaned only after getSession/onAuthStateChange has had time to restore the session.
+    if (typeof showResetPasswordPanel === 'function') showResetPasswordPanel();
   }
   return true;
+}
+
+async function waitForAuthLinkSession(maxMs = 3500) {
+  const started = Date.now();
+  const waits = [0, 150, 300, 500, 800, 1200, 1600, 2200, 3000];
+  let last = null;
+  for (const ms of waits) {
+    if (Date.now() - started > maxMs) break;
+    if (ms) await new Promise(resolve => setTimeout(resolve, ms));
+    try {
+      const res = await sb.auth.getSession();
+      last = res.data;
+      if (res.data?.session) return res.data;
+    } catch (_) {}
+  }
+  return last || { session: null };
+}
+
+function finishAuthLinkUrlCleanup() {
+  if (!RECOVERY_INTENT || AUTH_URL_CLEANED) return;
+  AUTH_URL_CLEANED = true;
+  cleanAuthUrl(true);
 }
 
 // V39: keep login stable after refresh / mobile sleep.
@@ -528,7 +582,8 @@ async function init() {
     return;
   }
 
-  const recoveryAtPageOpen = RECOVERY_INTENT;
+  // V133: Early Hash Check. This runs before any route guard / enterApp decision.
+  const recoveryAtPageOpen = RECOVERY_INTENT || getAuthRedirectInfo().isRecovery;
 
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
     auth: {
@@ -540,26 +595,41 @@ async function init() {
     }
   });
 
-  // V132: clean expired/error auth URLs before normal app loading.
   const continueInit = await handleInitialAuthRedirectOnce();
   if (!continueInit) { setBusy(false); return; }
 
   sb.auth.onAuthStateChange(async (event, session) => {
     state.session = session;
 
-    // Sign out must win even if this tab was originally opened from a recovery link.
-    // Otherwise logging out after setting a password can show the reset form again.
+    // V134: Auth email links often emit SIGNED_IN first. During forced password setup,
+    // never allow normal enterApp/login routing until the user actually saves a new password.
+    if (isPasswordSetupForced() && event !== 'SIGNED_OUT') {
+      RECOVERY_INTENT = true;
+      AUTH_LINK_PROCESSING = false;
+      showResetPasswordPanel();
+      finishAuthLinkUrlCleanup();
+      setBusy(false);
+      return;
+    }
+
     if (event === 'SIGNED_OUT') {
+      if (AUTH_LINK_PROCESSING || RECOVERY_INTENT) {
+        // Do not let a transient SIGNED_OUT during email-link parsing kick the user back to login.
+        showResetPasswordPanel();
+        setBusy(false);
+        return;
+      }
       RECOVERY_INTENT = false;
       exitApp();
       setBusy(false);
       return;
     }
 
-    // Supabase may emit PASSWORD_RECOVERY, SIGNED_IN, or clean the URL very quickly.
-    // If the page was opened from a recovery link, always show reset form first.
-    if (event === 'PASSWORD_RECOVERY' || RECOVERY_INTENT || isPasswordRecoveryUrl()) {
+    if (event === 'PASSWORD_RECOVERY' || RECOVERY_INTENT || recoveryAtPageOpen || isPasswordRecoveryUrl()) {
+      RECOVERY_INTENT = true;
+      AUTH_LINK_PROCESSING = false;
       showResetPasswordPanel();
+      finishAuthLinkUrlCleanup();
       setBusy(false);
       return;
     }
@@ -567,9 +637,23 @@ async function init() {
     if (session?.user) await enterApp();
   });
 
-  // V72: หลัง refresh หรือกลับมาจาก Gmail/Safari บางครั้ง Supabase คืน session ช้ากว่าหน้าเว็บโหลด
-  // จึงรอ restore token สั้น ๆ ก่อนตัดสินว่าไม่มี session จริง เพื่อลดอาการเด้งกลับหน้า Login
-  let { data } = await sb.auth.getSession();
+  let data = null;
+  if (recoveryAtPageOpen || RECOVERY_INTENT || isPasswordRecoveryUrl() || isPasswordSetupForced()) {
+    setPasswordSetupForced('init-recovery-branch');
+    RECOVERY_INTENT = true;
+    AUTH_LINK_PROCESSING = true;
+    showResetPasswordPanel();
+    data = await waitForAuthLinkSession();
+    state.session = data?.session || null;
+    AUTH_LINK_PROCESSING = false;
+    finishAuthLinkUrlCleanup();
+    showResetPasswordPanel();
+    setBusy(false);
+    return;
+  }
+
+  let sessionRes = await sb.auth.getSession();
+  data = sessionRes.data;
   if (!data?.session) {
     for (const waitMs of [200, 500, 900, 1300]) {
       await new Promise(resolve => setTimeout(resolve, waitMs));
@@ -578,12 +662,6 @@ async function init() {
     }
   }
   state.session = data.session;
-
-  if (RECOVERY_INTENT || isPasswordRecoveryUrl()) {
-    showResetPasswordPanel();
-    setBusy(false);
-    return;
-  }
 
   if (state.session?.user) await enterApp();
 }
@@ -672,12 +750,16 @@ function bindGlobalEvents() {
       cleanAuthUrl(false);
       const { error } = await sb.auth.updateUser({ password });
       if (error) throw error;
+      clearPasswordSetupForced();
+      RECOVERY_INTENT = false;
+      AUTH_LINK_PROCESSING = false;
       $('resetPasswordForm').classList.add('hidden');
       const { data } = await sb.auth.getSession();
       state.session = data.session;
       showToast('บันทึกชื่อผู้ใช้และรหัสผ่านแล้ว');
       await enterApp();
     } catch (err) {
+      setPasswordSetupForced('password-update-failed');
       RECOVERY_INTENT = true;
       showToast(err.message || 'บันทึกไม่สำเร็จ');
     } finally {
@@ -715,6 +797,13 @@ function showResetPasswordPanel() {
 }
 
 async function enterApp() {
+  // V134 failsafe: if this tab came from an invite/reset link, do not enter the app
+  // until the resetPasswordForm submits successfully.
+  if (isPasswordSetupForced() || RECOVERY_INTENT || isPasswordRecoveryUrl()) {
+    showResetPasswordPanel();
+    setBusy(false);
+    return;
+  }
   setBusy(true, 'กำลังโหลดข้อมูล');
   try {
     await loadProfile();
@@ -3762,12 +3851,16 @@ function bindGlobalEvents() {
       cleanAuthUrl(false);
       const { error } = await sb.auth.updateUser({ password });
       if (error) throw error;
+      clearPasswordSetupForced();
+      RECOVERY_INTENT = false;
+      AUTH_LINK_PROCESSING = false;
       $('resetPasswordForm').classList.add('hidden');
       const { data } = await sb.auth.getSession();
       state.session = data.session;
       showToast('บันทึกชื่อผู้ใช้และรหัสผ่านแล้ว');
       await enterApp();
     } catch (err) {
+      setPasswordSetupForced('password-update-failed');
       RECOVERY_INTENT = true;
       showToast(err.message || 'บันทึกไม่สำเร็จ', { tone:'error' });
     } finally { setBusy(false); }
@@ -4224,10 +4317,13 @@ function bindGlobalEvents() {
         cleanAuthUrl(false);
         const { error } = await sb.auth.updateUser({ password });
         if (error) throw error;
+        clearPasswordSetupForced();
+        RECOVERY_INTENT = false;
+        AUTH_LINK_PROCESSING = false;
         $('resetPasswordForm').classList.add('hidden');
         const { data } = await sb.auth.getSession(); state.session = data.session;
         showToast('บันทึกชื่อผู้ใช้และรหัสผ่านแล้ว'); await enterApp();
-      } catch (err) { RECOVERY_INTENT = true; showToast(err.message || 'บันทึกไม่สำเร็จ', { tone:'error' }); }
+      } catch (err) { setPasswordSetupForced('password-update-failed'); RECOVERY_INTENT = true; showToast(err.message || 'บันทึกไม่สำเร็จ', { tone:'error' }); }
       finally { setBusy(false); }
     });
 
