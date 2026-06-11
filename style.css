@@ -1167,3 +1167,150 @@ body.cnmi-sidebar-hidden .main-panel{grid-column:1 / -1!important;width:100%!imp
   color:#8a5a00;
   font-size:12px;
 }
+
+/* V150 clean components: schedule / OT / month position fixes */
+.clean-schedule-tabs{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  background:#fff;
+  padding:8px 0;
+  margin:8px 0 12px;
+  border-bottom:1px solid #e5e7eb;
+}
+.clean-calendar-cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:10px;
+}
+.clean-day-card,.clean-person-card{
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#fff;
+  padding:10px;
+}
+.clean-day-card.is-offday{background:#f8fafc;}
+.clean-day-head,.clean-day-line,.clean-person-duty{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.clean-day-head{margin-bottom:8px;}
+.clean-day-line,.clean-person-duty{
+  padding:5px 0;
+  border-top:1px dashed #e5e7eb;
+}
+.clean-person-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:10px;
+}
+.clean-person-card{
+  background:var(--staff-bg,#fff);
+  color:var(--staff-fg,#111827);
+}
+.clean-person-head{
+  width:100%;
+  border:0;
+  background:transparent;
+  color:inherit;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:0 0 8px;
+  cursor:pointer;
+}
+.clean-grid-wrap{overflow:auto;}
+.clean-schedule-grid,.clean-balance-table{
+  border-collapse:collapse;
+  width:max-content;
+  min-width:100%;
+  table-layout:fixed;
+}
+.clean-schedule-grid th,.clean-schedule-grid td,.clean-balance-table th,.clean-balance-table td{
+  border:1px solid #e5e7eb;
+  padding:4px 6px;
+  vertical-align:top;
+  font-size:12px;
+}
+.clean-schedule-grid thead th{
+  position:sticky;
+  top:0;
+  z-index:15;
+  background:#f8fafc;
+}
+.clean-sticky-col{
+  position:sticky!important;
+  left:0;
+  z-index:20!important;
+}
+.clean-staff-cell{
+  background:var(--staff-bg,#fff)!important;
+  color:var(--staff-fg,#111827)!important;
+  min-width:110px;
+  max-width:130px;
+}
+.clean-staff-cell button{
+  all:unset;
+  cursor:pointer;
+  font-weight:800;
+}
+.offday-col{background:#f1f5f9!important;}
+.clean-cell-stack{
+  min-height:22px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+}
+.clean-shift-pill{
+  border:0;
+  border-radius:999px;
+  background:#dbeafe;
+  color:#1e3a8a;
+  font-weight:800;
+  font-size:11px;
+  line-height:1.1;
+  padding:3px 7px;
+  cursor:pointer;
+}
+.mini-status{
+  display:inline-block;
+  border:1px solid #fdba74;
+  background:#fff7ed;
+  color:#9a3412;
+  border-radius:999px;
+  padding:1px 5px;
+  font-size:10px;
+  font-weight:800;
+}
+.clean-balance-dashboard .notice{margin-bottom:10px;}
+.ot-approval-filter{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:end;
+  gap:10px;
+  margin:8px 0 12px;
+}
+.ot-approval-filter label{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin:0;
+  min-width:180px;
+}
+.ot-approval-filter input,.ot-approval-filter select{width:100%;}
+.month-position-matrix .holiday-cell,.month-position-matrix .weekend-cell{background:#f1f5f9!important;color:#334155;font-weight:800;}
+.month-position-matrix .no-position-day span{display:inline-block;border-radius:999px;background:#e5e7eb;padding:4px 8px;}
+@media(max-width:700px){
+  .ot-approval-filter{align-items:stretch;}
+  .ot-approval-filter label{width:100%;min-width:0;}
+  .clean-schedule-grid th,.clean-schedule-grid td{font-size:10px;padding:3px 4px;}
+  .clean-staff-cell{min-width:96px;}
+}
