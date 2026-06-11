@@ -318,20 +318,6 @@ function clearCachedAppSession() {
   try { storage?.removeItem(APP_SESSION_CACHE_KEY); } catch (_) {}
 }
 
-function hasPersistedSupabaseAuthSession() {
-  const storage = safeStorage();
-  if (!storage) return false;
-  try {
-    return Object.keys(storage).some(k => {
-      const key = String(k || '').toLowerCase();
-      if (!(key.includes('supabase') || key.includes('sb-'))) return false;
-      if (!(key.includes('auth') || key.includes('token'))) return false;
-      const value = storage.getItem(k) || '';
-      return /access_token|refresh_token|currentSession|expires_at/i.test(value);
-    });
-  } catch (_) { return false; }
-}
-
 function authRedirectUrl(mode='') {
   // V72: ใช้ URL ของหน้าเว็บปัจจุบันจริง ๆ เสมอ และตัด query/hash เก่าออก
   // ช่วยลดปัญหาลิงก์ตั้งรหัสผ่านย้อนกลับผิด path หลัง deploy หลาย branch/folder
@@ -536,20 +522,10 @@ async function init() {
   // จึงรอ restore token สั้น ๆ ก่อนตัดสินว่าไม่มี session จริง เพื่อลดอาการเด้งกลับหน้า Login
   let { data } = await sb.auth.getSession();
   if (!data?.session) {
-    const hasLocalToken = hasPersistedSupabaseAuthSession();
-    const waits = hasLocalToken ? [200, 500, 900, 1300, 1800, 2500, 3500] : [200, 500, 900, 1300];
-    for (const waitMs of waits) {
+    for (const waitMs of [200, 500, 900, 1300]) {
       await new Promise(resolve => setTimeout(resolve, waitMs));
       const retry = await sb.auth.getSession();
       if (retry.data?.session) { data = retry.data; break; }
-    }
-    if (!data?.session && hasLocalToken) {
-      try {
-        const refreshed = await sb.auth.refreshSession();
-        if (refreshed?.data?.session) data = refreshed.data;
-      } catch (err) {
-        console.warn('refresh session after reload failed', err);
-      }
     }
   }
   state.session = data.session;
@@ -600,8 +576,7 @@ function bindGlobalEvents() {
       setBusy(false);
       return showToast(err.message || 'ไม่พบชื่อผู้ใช้');
     }
-    try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) {
       const msg = String(error.message || '');
@@ -3679,8 +3654,7 @@ function bindGlobalEvents() {
     let email = '';
     try { email = await resolveLoginIdentifier(loginId); }
     catch (err) { setBusy(false); return showToast(err.message || 'ไม่พบชื่อผู้ใช้', { tone:'error' }); }
-    try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) {
       const msg = String(error.message || '');
@@ -4148,7 +4122,6 @@ function bindGlobalEvents() {
       let email = '';
       try { email = await resolveLoginIdentifier(loginId); }
       catch (err) { setBusy(false); return showToast(err.message || 'ไม่พบชื่อผู้ใช้', { tone:'error' }); }
-      try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
       const { error } = await sb.auth.signInWithPassword({ email, password });
       setBusy(false);
       if (error) {
