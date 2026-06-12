@@ -1472,3 +1472,97 @@ body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
   body:not(.cnmi-sidebar-hidden) #appView.app-view{grid-template-columns:286px minmax(0,1fr)!important;}
   body:not(.cnmi-sidebar-hidden) #sidebar.sidebar{display:flex!important;position:sticky!important;}
 }
+
+/* V158 grouped averages + compact monthly-position staff column + missing roles tracker */
+.grouped-balance-dashboard{
+  display:grid;
+  gap:14px;
+}
+.balance-group-section{
+  border:1px solid #e5e7eb;
+  border-radius:18px;
+  padding:12px;
+  background:#fff;
+}
+.balance-group-title{
+  align-items:center;
+  gap:10px;
+  margin-bottom:8px;
+}
+.v158-position-matrix .staff-color-cell{
+  padding:5px 8px!important;
+  min-width:112px!important;
+  max-width:132px!important;
+  line-height:1.1!important;
+}
+.v158-position-matrix .compact-staff-summary{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:2px;
+  min-height:0;
+}
+.v158-position-matrix .compact-staff-summary b{
+  font-size:12px;
+  line-height:1.05;
+  white-space:nowrap;
+}
+.v158-position-matrix .compact-staff-summary span{
+  margin-top:0;
+  padding:0;
+  background:transparent;
+  font-size:10px;
+  line-height:1.05;
+  text-decoration:underline;
+  opacity:.92;
+}
+.v158-position-matrix .compact-staff-summary:hover span{
+  background:transparent;
+  opacity:1;
+}
+.v158-position-matrix .missing-role-row th{
+  position:sticky;
+  top:0;
+  z-index:4;
+  border-top:0;
+  vertical-align:top;
+}
+.v158-position-matrix .missing-role-head{
+  background:#f8fafc!important;
+  color:#64748b;
+  font-size:11px;
+  font-weight:900;
+}
+.v158-position-matrix .missing-role-cell{
+  min-width:108px;
+  max-width:128px;
+  padding:4px 5px!important;
+  font-size:10px;
+  line-height:1.15;
+  white-space:normal;
+}
+.v158-position-matrix .missing-role-cell span{
+  display:block;
+  margin:2px 0;
+  padding:2px 5px;
+  border-radius:999px;
+  background:#fff7ed;
+  color:#9a3412;
+  border:1px solid #fed7aa;
+  font-weight:900;
+  white-space:nowrap;
+}
+.v158-position-matrix .missing-role-cell.complete{
+  background:#ecfdf5;
+  color:#047857;
+  font-weight:900;
+}
+.v158-position-matrix .missing-role-cell.no-position-day{
+  background:#f1f5f9;
+  color:#64748b;
+  font-weight:900;
+}
+@media(max-width:720px){
+  .v158-position-matrix .staff-color-cell{min-width:96px!important;max-width:112px!important;}
+  .v158-position-matrix .missing-role-cell{min-width:92px;max-width:106px;font-size:9px;}
+}

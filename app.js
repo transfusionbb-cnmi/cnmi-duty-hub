@@ -2068,29 +2068,47 @@ function calculateDaysOff(staffId, key=state.monthKey, assignments=scheduleAssig
     return sum + 1;
   }, 0);
 }
+function dutyBalanceGroupLabel(st) {
+  return String(st?.staff_type || '').trim() === 'เคิก' ? 'เคิก' : 'MT';
+}
 function renderBalanceDashboard(staffList, assignments, key=state.monthKey) {
-  const rowsWithDuty = assignments.filter(a => a.staff_id);
+  const rowsWithDuty = (assignments || []).filter(a => a.staff_id);
   const stats = calcFairness(rowsWithDuty);
-  const normalStaff = staffList.filter(st => !isLongTermLeaveStaff(st));
-  const unitsList = normalStaff.map(st => Number(stats[st.id]?.units || 0));
-  const avgUnits = unitsList.length ? unitsList.reduce((a,b) => a + b, 0) / unitsList.length : 0;
-  const rows = staffList.map(st => {
-    const r = stats[st.id] || {};
-    const longTerm = isLongTermLeaveStaff(st);
-    const units = Number(r.units || 0);
-    const hours = Number(r.hours || 0);
-    const pay = Number(r.pay || 0);
-    const gap = longTerm ? 0 : units - avgUnits;
-    const daysOff = calculateDaysOff(st.id, key, assignments);
-    const status = longTerm ? 'ลาระยะยาว / ไม่คิดหนี้เวร' : Math.abs(gap) <= 0.5 ? 'สมดุล' : gap > 0 ? 'เวรมากกว่าเฉลี่ย' : 'เวรน้อยกว่าเฉลี่ย';
-    const color = longTerm ? 'black' : Math.abs(gap) <= 0.5 ? 'green' : gap > 0 ? 'orange' : 'blue';
-    return { st, units, hours, pay, gap, daysOff, status, color };
-  });
-  return `<div class="clean-balance-dashboard">
-    <div class="notice soft-notice">จำนวนวันหยุดสะสม = เสาร์/อาทิตย์/นักขัตฤกษ์ที่เจ้าหน้าที่ไม่มีเวรในระบบ วันหยุดที่มีเวรจะไม่ถูกนับ</div>
-    <div class="table-wrap"><table class="clean-balance-table"><thead><tr><th>เจ้าหน้าที่</th><th>เวรรวม</th><th>หน่วยเวร</th><th>ชั่วโมงรวม</th><th>เงินประมาณ</th><th>Quota Gap</th><th>OT Balance</th><th>จำนวนวันหยุดสะสม</th><th>สถานะ</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td>${staffPill(r.st)}</td><td>${assignments.filter(a => String(a.staff_id) === String(r.st.id)).length}</td><td>${r.units.toFixed(1)}</td><td>${r.hours.toFixed(1)}</td><td>${r.pay.toLocaleString()}</td><td>${r.gap.toFixed(1)}</td><td>${isLongTermLeaveStaff(r.st) ? '0.0' : r.gap.toFixed(1)}</td><td>${r.daysOff}</td><td>${badge(r.status, r.color)}</td></tr>`).join('')}
-    </tbody></table></div>
+  const groupOrder = ['MT', 'เคิก'];
+  const groups = groupOrder
+    .map(label => ({
+      label,
+      staff: (staffList || []).filter(st => dutyBalanceGroupLabel(st) === label)
+    }))
+    .filter(g => g.staff.length);
+
+  const renderGroup = (group) => {
+    const normalStaff = group.staff.filter(st => !isLongTermLeaveStaff(st));
+    const unitsList = normalStaff.map(st => Number(stats[st.id]?.units || 0));
+    const avgUnits = unitsList.length ? unitsList.reduce((a,b) => a + b, 0) / unitsList.length : 0;
+    const rows = group.staff.map(st => {
+      const r = stats[st.id] || {};
+      const longTerm = isLongTermLeaveStaff(st);
+      const units = Number(r.units || 0);
+      const hours = Number(r.hours || 0);
+      const pay = Number(r.pay || 0);
+      const gap = longTerm ? 0 : units - avgUnits;
+      const daysOff = calculateDaysOff(st.id, key, assignments);
+      const status = longTerm ? 'ลาระยะยาว / ไม่คิดหนี้เวร' : Math.abs(gap) <= 0.5 ? 'สมดุล' : gap > 0 ? 'เวรมากกว่าเฉลี่ย' : 'เวรน้อยกว่าเฉลี่ย';
+      const color = longTerm ? 'black' : Math.abs(gap) <= 0.5 ? 'green' : gap > 0 ? 'orange' : 'blue';
+      return { st, units, hours, pay, gap, daysOff, status, color };
+    });
+    return `<section class="balance-group-section">
+      <div class="section-title balance-group-title"><h3>กลุ่ม ${escapeHtml(group.label)}</h3><span>${badge(`ค่าเฉลี่ย ${avgUnits.toFixed(1)} หน่วยเวร`, 'blue')}</span><span class="hint">คิดเฉลี่ยเฉพาะเจ้าหน้าที่ในกลุ่มนี้${normalStaff.length !== group.staff.length ? ' และไม่รวมคนลาระยะยาว' : ''}</span></div>
+      <div class="table-wrap"><table class="clean-balance-table"><thead><tr><th>เจ้าหน้าที่</th><th>เวรรวม</th><th>หน่วยเวร</th><th>ชั่วโมงรวม</th><th>เงินประมาณ</th><th>Quota Gap</th><th>OT Balance</th><th>จำนวนวันหยุดสะสม</th><th>สถานะ</th></tr></thead><tbody>
+        ${rows.map(r => `<tr><td>${staffPill(r.st)}</td><td>${(assignments || []).filter(a => String(a.staff_id) === String(r.st.id)).length}</td><td>${r.units.toFixed(1)}</td><td>${r.hours.toFixed(1)}</td><td>${r.pay.toLocaleString()}</td><td>${r.gap.toFixed(1)}</td><td>${isLongTermLeaveStaff(r.st) ? '0.0' : r.gap.toFixed(1)}</td><td>${r.daysOff}</td><td>${badge(r.status, r.color)}</td></tr>`).join('')}
+      </tbody></table></div>
+    </section>`;
+  };
+
+  return `<div class="clean-balance-dashboard grouped-balance-dashboard">
+    <div class="notice soft-notice">จำนวนวันหยุดสะสม = เสาร์/อาทิตย์/นักขัตฤกษ์ที่เจ้าหน้าที่ไม่มีเวรในระบบ วันหยุดที่มีเวรจะไม่ถูกนับ • ค่าเฉลี่ยแยกตามกลุ่ม MT / เคิก ไม่เอาทุกคนมาหารรวมกัน</div>
+    ${groups.length ? groups.map(renderGroup).join('') : empty('ยังไม่มีเจ้าหน้าที่สำหรับคำนวณสมดุลเวร')}
   </div>`;
 }
 function renderGridView(staffList, assignments, key=state.monthKey) {
@@ -4839,6 +4857,51 @@ function bindGlobalEvents() {
       return summary;
     };
 
+
+    function monthPositionExpectedTemplatesForDate(date) {
+      const key = normalizeDateKey(date);
+      if (!key || isWeekend(key) || isHolidayDate(key)) return [];
+      const list = hasOuting(key)
+        ? [...OUTING_POSITIONS, ...DEFAULT_POSITIONS.filter(p => p.zone === 'Blood Bank' || p.zone === 'Manual')]
+        : DEFAULT_POSITIONS;
+      const seen = new Set();
+      const out = [];
+      list.forEach(p => {
+        const code = positionBaseCode(p?.code || '');
+        if (!code || seen.has(code)) return;
+        seen.add(code);
+        out.push({ ...p, code });
+      });
+      return out;
+    }
+
+    function monthPositionAssignedCodeSet(rows, date) {
+      const key = normalizeDateKey(date);
+      const assigned = new Set();
+      (rows || []).forEach(r => {
+        if (normalizeDateKey(r?.work_date) !== key) return;
+        if (!r?.staff_id) return;
+        const code = positionBaseCode(r?.position_code || r?.code || '');
+        if (!code || code === 'รอตรวจสอบ') return;
+        assigned.add(code);
+      });
+      return assigned;
+    }
+
+    function monthPositionMissingRolesForDate(rows, date) {
+      const expected = monthPositionExpectedTemplatesForDate(date);
+      const assigned = monthPositionAssignedCodeSet(rows, date);
+      return expected.filter(p => !assigned.has(positionBaseCode(p.code)));
+    }
+
+    function renderMonthPositionMissingCell(date, rows) {
+      const key = normalizeDateKey(date);
+      if (isWeekend(key) || isHolidayDate(key)) return `<th class="missing-role-cell no-position-day">ไม่จัด</th>`;
+      const missing = monthPositionMissingRolesForDate(rows, key);
+      if (!missing.length) return `<th class="missing-role-cell complete">ครบ</th>`;
+      return `<th class="missing-role-cell has-missing">${missing.map(p => `<span>${escapeHtml(positionLabelForCell(p.code))}</span>`).join('')}</th>`;
+    }
+
     renderMonthPositionMatrix = window.renderMonthPositionMatrix = function renderMonthPositionMatrixV153(rows, dates) {
       if (!(rows || []).length) return empty('ยังไม่มีแผนรายเดือน กด “สร้างแผนทั้งเดือน” ก่อน');
       const byCell = {};
@@ -4850,17 +4913,17 @@ function bindGlobalEvents() {
       });
       const canEdit = isAdmin() && state.page === 'positionMonth';
       const displayStaff = orderedStaff(state.staff.filter(s => isDailyPositionEnabled(s) || (rows || []).some(r => String(r?.staff_id) === String(s.id))));
-      return `<div class="monthly-matrix-wrap v153-position-matrix">
+      return `<div class="monthly-matrix-wrap v153-position-matrix v158-position-matrix">
         <div class="matrix-legend"><span class="legend-box weekend"></span> WEEKEND/HOLIDAY = ไม่จัดตำแหน่ง <span class="legend-box outing"></span> ออกหน่วย <span class="legend-box leave"></span> แสดงเฉพาะลางานจริง / ไม่รับเวรยังจัดตำแหน่งได้ ${canEdit ? '<span class="hint">Admin เลือกตำแหน่งในช่องได้ แล้วกดบันทึกแผนทั้งเดือน</span>' : ''}</div>
-        <div class="table-wrap month-position-matrix"><table><thead><tr><th class="sticky-col staff-col">เจ้าหน้าที่</th>${dates.map(date => {
+        <div class="table-wrap month-position-matrix"><table><thead><tr><th class="sticky-col staff-col">เจ้าหน้าที่</th>${(dates || []).map(date => {
           const d = parseDate(date);
           const cls = isHolidayDate(date) ? 'holiday-head' : isWeekend(date) ? 'weekend-head' : hasOuting(date) ? 'outing-head' : '';
           return `<th class="date-head ${cls}"><b>${d.getDate()}</b><br><span>${d.toLocaleDateString('th-TH', { weekday:'short' })}</span></th>`;
-        }).join('')}</tr></thead><tbody>
-          ${displayStaff.map(st => `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${staffColor(st)};color:${textColorFor(staffColor(st))}"><button class="staff-summary-trigger" data-month-position-stat="${st.id}" type="button" title="ดูสรุปตำแหน่งรายเดือนของ ${escapeHtml(st.nickname || st.full_name || '')}"><b>${escapeHtml(st.nickname || st.full_name || '-')}</b><br><small>${escapeHtml(st.staff_type || '')}</small><span>ดูสรุป</span></button></td>${dates.map(date => renderMonthPositionCell(st, date, byCell[`${st.id}|${date}`] || [], canEdit)).join('')}</tr>`).join('')}
+        }).join('')}</tr><tr class="missing-role-row"><th class="sticky-col staff-col missing-role-head">ยังขาด</th>${(dates || []).map(date => renderMonthPositionMissingCell(date, rows || [])).join('')}</tr></thead><tbody>
+          ${displayStaff.map(st => `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${staffColor(st)};color:${textColorFor(staffColor(st))}"><button class="staff-summary-trigger compact-staff-summary" data-month-position-stat="${st.id}" type="button" title="ดูสรุปตำแหน่งรายเดือนของ ${escapeHtml(st.nickname || st.full_name || '')}"><b>${escapeHtml(st.nickname || st.full_name || '-')}</b><span>(ดูสรุป)</span></button></td>${(dates || []).map(date => renderMonthPositionCell(st, date, byCell[`${st.id}|${date}`] || [], canEdit)).join('')}</tr>`).join('')}
         </tbody></table></div>
       </div>`;
-    };
+    }
 
     renderMonthPositionCell = window.renderMonthPositionCell = function renderMonthPositionCellV153(staff, date, cellRows, canEdit=false) {
       const key = normalizeDateKey(date);
@@ -4954,24 +5017,34 @@ function bindGlobalEvents() {
       ensureMonthPositionDraftForEdit();
       let rows = state.monthPositionDraft?.rows || [];
       const selectedCode = String(value || '').trim();
-      const targetDates = WEEKLY_AUTO_FILL_POSITION_CODES.has(selectedCode)
-        ? weekdayDatesForSameWorkWeek(date)
-        : [date];
+      const isWeeklyAutoFill = WEEKLY_AUTO_FILL_POSITION_CODES.has(selectedCode);
+      const targetDates = isWeeklyAutoFill ? weekdayDatesForSameWorkWeek(date) : [date];
       let changed = 0;
+      let cleared = 0;
       targetDates.forEach(d => {
         if (!canAutoFillMonthPositionCell(staffId, d)) return;
+        if (isWeeklyAutoFill) {
+          const before = rows.length;
+          rows = rows.filter(r => {
+            const sameDate = normalizeDateKey(r?.work_date) === d;
+            const samePosition = String(positionBaseCode(r?.position_code || r?.code || '')) === selectedCode;
+            const otherStaff = String(r?.staff_id || '') !== String(staffId || '');
+            return !(sameDate && samePosition && otherStaff);
+          });
+          cleared += before - rows.length;
+        }
         rows = upsertMonthPositionDraftCell(rows, d, staffId, selectedCode);
         changed += 1;
       });
       state.monthPositionDraft.rows = rows;
       rebalanceMonthPositionDraft();
       renderPage();
-      if (WEEKLY_AUTO_FILL_POSITION_CODES.has(selectedCode)) {
-        showToast(`เติม ${positionLabelForCell(selectedCode)} ให้วันทำงานสัปดาห์นี้แล้ว ${changed} ช่อง โดยข้ามวันหยุด/HOLIDAY/ลางาน`);
+      if (isWeeklyAutoFill) {
+        showToast(`เติม ${positionLabelForCell(selectedCode)} ให้วันทำงานสัปดาห์นี้แล้ว ${changed} ช่อง${cleared ? ` และเคลียร์ตำแหน่งซ้ำของคนอื่น ${cleared} ช่อง` : ''}`);
       } else {
         showToast('ปรับตำแหน่งในร่างแล้ว กดบันทึกแผนทั้งเดือนเพื่อบันทึกจริง');
       }
-    };
+    }
   } catch (_) {}
 
   try {
