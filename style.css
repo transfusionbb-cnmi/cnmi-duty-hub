@@ -1361,3 +1361,114 @@ body.cnmi-sidebar-hidden .main-panel{grid-column:1 / -1!important;width:100%!imp
   .clean-schedule-grid td{width:48px;min-width:48px;max-width:48px;}
   .clean-shift-pill{max-width:42px;padding:3px 4px;}
 }
+
+/* V152 SRS clean fixes: roster-only staff, leave colors, compact grid, full sidebar hide */
+body.cnmi-sidebar-hidden #sidebar.sidebar{
+  display:none!important;
+  width:0!important;
+  min-width:0!important;
+  max-width:0!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  overflow:hidden!important;
+}
+body.cnmi-sidebar-hidden #appView.app-view{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+body.cnmi-sidebar-hidden .main-panel{
+  grid-column:1 / -1!important;
+  width:100%!important;
+  max-width:none!important;
+  margin-left:0!important;
+}
+body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
+
+.clean-grid-wrap,.clean-balance-dashboard .table-wrap{overflow:auto;max-width:100%;}
+.clean-schedule-grid{
+  width:max-content!important;
+  min-width:max-content!important;
+  table-layout:fixed!important;
+}
+.clean-schedule-grid th:not(.clean-sticky-col),
+.clean-schedule-grid td{
+  width:52px!important;
+  min-width:52px!important;
+  max-width:52px!important;
+  padding:3px 4px!important;
+}
+.clean-schedule-grid .clean-sticky-col{
+  width:auto!important;
+  min-width:max-content!important;
+  max-width:none!important;
+  white-space:nowrap!important;
+  left:0!important;
+}
+.clean-staff-cell button{white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important;}
+.clean-shift-pill{
+  background:var(--staff-bg,#dbeafe)!important;
+  color:var(--staff-fg,#1e3a8a)!important;
+  width:auto!important;
+  min-width:38px;
+  max-width:none!important;
+  white-space:nowrap;
+}
+.clean-balance-table th:first-child,
+.clean-balance-table td:first-child{
+  position:sticky!important;
+  left:0!important;
+  z-index:12!important;
+  background:#fff!important;
+  box-shadow:1px 0 0 #e5e7eb;
+  white-space:nowrap;
+}
+.clean-balance-table thead th:first-child{z-index:18!important;background:#f8fafc!important;}
+
+.mini-status.leave-personal,.matrix-cell.leave-personal{background:#ede9fe!important;color:#5b21b6!important;border-color:#c4b5fd!important;}
+.mini-status.leave-sick,.matrix-cell.leave-sick{background:#fef3c7!important;color:#92400e!important;border-color:#fcd34d!important;}
+.mini-status.leave-vacation,.matrix-cell.leave-vacation{background:#dcfce7!important;color:#166534!important;border-color:#86efac!important;}
+.mini-status.leave-no-duty,.matrix-cell.leave-no-duty{background:#e5e7eb!important;color:#374151!important;border-color:#cbd5e1!important;}
+.mini-status.leave-other,.matrix-cell.leave-other{background:#e0f2fe!important;color:#075985!important;border-color:#7dd3fc!important;}
+.mini-status{font-weight:900;white-space:nowrap;}
+.month-position-matrix .holiday-cell,
+.month-position-matrix .weekend-cell{
+  background:#f1f5f9!important;
+  color:#334155!important;
+  font-weight:900!important;
+  pointer-events:none;
+}
+
+@media(max-width:700px){
+  .person-filter-mobile,.clean-person-mobile-result{display:block!important;}
+  .clean-person-list{display:none!important;}
+  .clean-schedule-grid th:not(.clean-sticky-col),
+  .clean-schedule-grid td{width:46px!important;min-width:46px!important;max-width:46px!important;}
+}
+
+/* V153 targeted UI fixes */
+.mini-status.leave-maternity,
+.matrix-cell.leave-maternity,
+.clean-schedule-grid td.leave-maternity{
+  background:#fce7f3!important;
+  color:#9d174d!important;
+  border-color:#f9a8d4!important;
+}
+.clean-schedule-grid td.leave-personal{background:#ede9fe!important;}
+.clean-schedule-grid td.leave-sick{background:#fef3c7!important;}
+.clean-schedule-grid td.leave-vacation{background:#dcfce7!important;}
+.clean-schedule-grid td.leave-no-duty{background:#e5e7eb!important;}
+.clean-schedule-grid td.leave-other{background:#e0f2fe!important;}
+.clean-schedule-grid .clean-cell-stack{gap:2px!important;align-items:center!important;justify-content:center!important;}
+.clean-schedule-grid .mini-status{font-size:9px!important;line-height:1.05!important;padding:2px 4px!important;white-space:nowrap!important;}
+.month-position-matrix .matrix-cell.leave-maternity{background:#fce7f3!important;color:#9d174d!important;}
+.month-position-matrix .matrix-cell.needs-review-cell:empty{background:#fff!important;}
+.v153-position-matrix .matrix-legend .leave::after{content:'';}
+@media (min-width:821px){
+  body.cnmi-sidebar-hidden #appView.app-view{grid-template-columns:minmax(0,1fr)!important;width:100%!important;}
+  body.cnmi-sidebar-hidden #sidebar.sidebar{display:none!important;visibility:hidden!important;position:absolute!important;left:-9999px!important;}
+  body.cnmi-sidebar-hidden .main-panel{grid-column:1 / -1!important;width:100%!important;max-width:100%!important;}
+  body.cnmi-sidebar-hidden .topbar,
+  body.cnmi-sidebar-hidden .page-content{width:100%!important;max-width:none!important;}
+  body:not(.cnmi-sidebar-hidden) #appView.app-view{grid-template-columns:286px minmax(0,1fr)!important;}
+  body:not(.cnmi-sidebar-hidden) #sidebar.sidebar{display:flex!important;position:sticky!important;}
+}

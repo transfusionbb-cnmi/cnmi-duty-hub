@@ -1094,19 +1094,49 @@ function holidayName(date) {
   if (!row || typeof row === 'string') return row || 'วันหยุดราชการ';
   return String(row.title || row.name || row.holiday_name || 'วันหยุดราชการ').split(':::')[0].trim();
 }
-function isActiveLeaveOn(staffId, date) {
+function activeLeaveRecordOn(staffId, date) {
   const key = normalizeDateKey(date);
-  return state.leaves.some(l => {
-    if (String(l.staff_id) !== String(staffId)) return false;
-    const status = String(l.status || l.approval_status || 'active').toLowerCase();
+  return state.leaves.find(l => {
+    if (String(l?.staff_id) !== String(staffId)) return false;
+    const status = String(l?.status || l?.approval_status || 'active').toLowerCase();
     if (/(cancel|reject|delete|ยกเลิก|ไม่อนุมัติ)/i.test(status)) return false;
     return overlapsDate(l, key);
-  });
+  }) || null;
+}
+function isActiveLeaveOn(staffId, date) {
+  return !!activeLeaveRecordOn(staffId, date);
+}
+function isNoDutyLeaveType(type) {
+  return String(type || '').trim() === 'ไม่รับเวร';
+}
+function leaveDisplayType(l) {
+  return String(l?.type || l?.leave_type || l?.reason_type || 'ลาอื่นๆ').split(':::')[0].trim();
+}
+function leaveCellClass(type) {
+  const t = leaveDisplayType({ type });
+  if (t === 'ลากิจ') return 'leave-personal';
+  if (t === 'ลาป่วย') return 'leave-sick';
+  if (t === 'ลาพักผ่อน' || t === 'ลาพักร้อน') return 'leave-vacation';
+  if (t === 'ไม่รับเวร') return 'leave-no-duty';
+  return 'leave-other';
+}
+function leaveCellBadge(l) {
+  if (!l) return '';
+  const t = leaveDisplayType(l);
+  return `<span class="mini-status ${leaveCellClass(t)}">${escapeHtml(t)}</span>`;
 }
 function isActiveStaff(s) {
   if (!s) return false;
   if (Object.prototype.hasOwnProperty.call(s, 'active')) return s.active === true || String(s.active).toLowerCase() === 'true';
   return s.is_active === true || String(s.is_active).toLowerCase() === 'true';
+}
+function isRosterStatusEnabled(s) {
+  if (!s) return false;
+  const v = s.roster_enabled ?? s.duty_enabled ?? s.can_roster ?? s.is_roster_enabled ?? s['สถานะจัดเวร'];
+  return v === true || String(v).toLowerCase() === 'true';
+}
+function isActiveRosterStaff(s) {
+  return isActiveStaff(s) && isRosterStatusEnabled(s) && s?.staff_type !== 'แพทย์' && !s?.maternity_status;
 }
 function isLongTermLeaveStaff(s) {
   if (!s) return false;
@@ -1114,13 +1144,13 @@ function isLongTermLeaveStaff(s) {
   return s.is_long_term_leave === true || String(s.is_long_term_leave).toLowerCase() === 'true' || Number(target) === 0;
 }
 function activeRosterStaffIds() {
-  return new Set((state.staff || []).filter(isActiveStaff).map(s => String(s.id)));
+  return new Set((state.staff || []).filter(isActiveRosterStaff).map(s => String(s.id)));
 }
 function assignmentBelongsToActiveStaff(a) {
   return !a?.staff_id || activeRosterStaffIds().has(String(a.staff_id));
 }
 function isDailyPositionEnabled(s) { return s?.daily_position_enabled !== false && isActiveStaff(s) && s?.staff_type !== 'แพทย์' && !s?.maternity_status && s?.position_training_status !== 'งดจัดชั่วคราว' && s?.position_training_status !== 'น้องใหม่ / ยังไม่จัดอัตโนมัติ'; }
-function isRosterEnabled(s) { return isActiveStaff(s) && s?.roster_enabled !== false && s?.staff_type !== 'แพทย์' && !s?.maternity_status; }
+function isRosterEnabled(s) { return isActiveRosterStaff(s); }
 function eligibilityRecord(staffId, positionCode) { return state.positionEligibility.find(x => x.staff_id === staffId && x.position_code === positionCode); }
 function positionEligible(staff, positionCode) {
   if (!staff || !positionCode) return false;
@@ -1924,7 +1954,7 @@ function scheduleMonthDates(key=state.monthKey) {
 }
 function scheduleStaffList() {
   // ตารางเวรอ่านค่าพนักงานแบบตรงที่สุด: active/is_active === true เท่านั้น แล้วเรียงตามลำดับหน้างานเดิม
-  return orderedStaff(state.staff.filter(s => isActiveStaff(s) && s?.staff_type !== 'แพทย์'));
+  return orderedStaff(state.staff.filter(isRosterEnabled));
 }
 function scheduleAssignmentsForMonth(key=state.monthKey) {
   return getAssignmentsForMonth(key).filter(a => normalizeDateKey(a?.duty_date).startsWith(key) && assignmentBelongsToActiveStaff(a));
@@ -2012,7 +2042,8 @@ function calculateDaysOff(staffId, key=state.monthKey, assignments=scheduleAssig
     const isCalendarOff = isWeekend(date) || isHolidayDate(date);
     if (!isCalendarOff) return sum;
     if (hasAnyDutyOn(staffId, date, assignments)) return sum;
-    return sum + 1;
+    const leave = activeLeaveRecordOn(staffId, date);
+    return sum + (leave || !hasAnyDutyOn(staffId, date, assignments) ? 1 : 0);
   }, 0);
 }
 function renderBalanceDashboard(staffList, assignments, key=state.monthKey) {
@@ -2054,8 +2085,9 @@ function renderGridView(staffList, assignments, key=state.monthKey) {
         .filter(a => String(a.staff_id) === String(st.id) && normalizeDateKey(a.duty_date) === date)
         .sort((a,b) => dutySortIndex(a.duty_code) - dutySortIndex(b.duty_code));
       const off = isWeekend(date) || isHolidayDate(date);
-      const leave = isActiveLeaveOn(st.id, date);
-      return `<td class="${off ? 'offday-col' : ''}"><div class="clean-cell-stack">${leave ? '<span class="mini-status">ลา/ไม่รับเวร</span>' : ''}${shifts.length ? shifts.map(a => { const attrs = canRequestTrade(a) ? `data-trade-duty="${a.id}"` : `data-staff-stat="${st.id}"`; return `<button type="button" class="clean-shift-pill" style="--staff-bg:${bg};--staff-fg:${fg}" ${attrs}>${escapeHtml(dutyDisplayLabel(a.duty_code))}</button>`; }).join('') : (off && !leave ? '<span class="muted">หยุด</span>' : '')}</div></td>`;
+      const leave = activeLeaveRecordOn(st.id, date);
+      const leaveCls = leave ? leaveCellClass(leaveDisplayType(leave)) : '';
+      return `<td class="${off ? 'offday-col' : ''} ${leaveCls}"><div class="clean-cell-stack">${leave ? leaveCellBadge(leave) : ''}${shifts.length ? shifts.map(a => { const attrs = canRequestTrade(a) ? `data-trade-duty="${a.id}"` : `data-staff-stat="${st.id}"`; return `<button type="button" class="clean-shift-pill" style="--staff-bg:${bg};--staff-fg:${fg}" ${attrs}>${escapeHtml(dutyDisplayLabel(a.duty_code))}</button>`; }).join('') : (off && !leave ? '<span class="muted">หยุด</span>' : '')}</div></td>`;
     }).join('')}</tr>`;
   }).join('')}</tbody></table></div>`;
 }
@@ -2356,17 +2388,19 @@ function renderMonthPositionCell(staff, date, cellRows, canEdit=false) {
   if (isWeekendDay || isHolidayDay) {
     return `<td class="matrix-cell no-position-day ${isHolidayDay ? 'holiday-cell' : 'weekend-cell'}"><span>${isHolidayDay ? 'HOLIDAY' : 'WEEKEND'}</span></td>`;
   }
-  const leave = isActiveLeaveOn(staff.id, key);
+  const leaveRow = activeLeaveRecordOn(staff.id, key);
+  const leaveType = leaveDisplayType(leaveRow);
+  const leave = !!leaveRow && !isNoDutyLeaveType(leaveType);
   const outing = hasOuting(key);
   const row = cellRows[0] || null;
   const cleanCodes = cellRows.map(r => positionLabelForCell(r.position_code || r.code)).filter(Boolean);
-  const cls = `${outing ? 'outing-cell' : ''} ${leave ? 'leave-cell' : ''} ${!cleanCodes.length && !leave ? 'needs-review-cell' : ''}`.trim();
+  const cls = `${outing ? 'outing-cell' : ''} ${leave ? 'leave-cell ' + leaveCellClass(leaveType) : ''} ${!cleanCodes.length && !leave ? 'needs-review-cell' : ''}`.trim();
   if (canEdit && !leave) {
     const current = row?.position_code || '';
     return `<td class="matrix-cell ${cls}"><select class="month-position-select" data-month-position-edit="${key}|${staff.id}"><option value="">รอตรวจสอบ</option>${ALL_POSITION_TEMPLATES.map(t => `<option value="${escapeHtml(t.code)}" ${current===t.code?'selected':''}>${escapeHtml(positionLabelForCell(t.code))}</option>`).join('')}</select>${outing ? '<div class="cell-note">ออกหน่วย</div>' : ''}</td>`;
   }
-  const text = cleanCodes.length ? cleanCodes.join('<br>') : (leave ? 'ลา/ไม่รับเวร' : 'รอตรวจสอบ');
-  const leaveMark = leave ? '<div class="cell-note">ไม่ต้องจัดตำแหน่ง</div>' : '';
+  const text = cleanCodes.length ? cleanCodes.join('<br>') : (leave ? escapeHtml(leaveType) : 'รอตรวจสอบ');
+  const leaveMark = leave ? '<div class="cell-note">ลางาน</div>' : '';
   const outingMark = outing && cleanCodes.length ? '<div class="cell-note">ออกหน่วย</div>' : '';
   return `<td class="matrix-cell ${cls}"><span>${text}</span>${leaveMark}${outingMark}</td>`;
 }
@@ -2890,7 +2924,7 @@ function handleChange(e) {
     const staffId = e.target.value || null;
     if (slot?.is_locked) return showToast('ช่องนี้ล็อกอยู่');
     if (staffId && !canStaffWorkSlot(staffId, slot)) {
-      if (hasAdjacentDuty(staffId, slot.duty_date, getAssignmentsForMonth(state.monthKey), slot)) showToast('คนนี้มีเวรติดกับวันก่อน/วันถัดไปแล้ว กรุณาเลือกคนอื่น');
+      if (isConsecutiveRestrictedDuty(slot?.duty_code) && hasAdjacentDuty(staffId, slot.duty_date, getAssignmentsForMonth(state.monthKey), slot)) showToast('คนนี้มีเวร ชบด ติดกับวันก่อน/วันถัดไปแล้ว กรุณาเลือกคนอื่น');
       else showToast('คนนี้ติดลา/ไม่รับเวร หรือประเภทไม่ตรงกับเวร');
       renderPage();
       return;
@@ -3085,7 +3119,7 @@ function handleDrop(e) {
   if (!target) return;
   if (target.is_locked) return showToast('ช่องนี้ล็อกอยู่');
   if (!canStaffWorkSlot(staffId, target)) {
-    if (hasAdjacentDuty(staffId, target.duty_date, getAssignmentsForMonth(state.monthKey), target)) return showToast('คนนี้มีเวรติดกับวันก่อน/วันถัดไปแล้ว กรุณาเลือกคนอื่น');
+    if (isConsecutiveRestrictedDuty(target?.duty_code) && hasAdjacentDuty(staffId, target.duty_date, getAssignmentsForMonth(state.monthKey), target)) return showToast('คนนี้มีเวร ชบด ติดกับวันก่อน/วันถัดไปแล้ว กรุณาเลือกคนอื่น');
     return showToast('คนนี้ติดลา/ไม่รับเวร หรือประเภทไม่ตรงกับเวร');
   }
 
@@ -3185,8 +3219,8 @@ function autoAssignRoster() {
       unfilled++;
     }
   });
-  if (unfilled) showToast(`Auto Assign แล้ว แต่เหลือ ${unfilled} ช่องที่ยังจัดไม่ได้ เพราะติดเงื่อนไขลา/ประเภทเวร/ห้ามเวรติดกัน`);
-  else showToast('Auto Assign แล้ว โดยกันไม่ให้ใครอยู่เวรติดกัน ตรวจทานก่อนประกาศอีกทีนะ');
+  if (unfilled) showToast(`Auto Assign แล้ว แต่เหลือ ${unfilled} ช่องที่ยังจัดไม่ได้ เพราะติดเงื่อนไขลา/ประเภทเวร/ห้าม ชบด ติดกัน`);
+  else showToast('Auto Assign แล้ว โดยกันไม่ให้ ชบด1/ชบด2/ชบด3 ติดกัน ส่วน ช4 จัดติดกันได้ตามปกติ');
 }
 function hasSameDayDuty(staffId, date, assignments = [], excludeSlot = null) {
   const ex = excludeSlot ? (excludeSlot.id || excludeSlot._temp_id) : null;
@@ -3194,12 +3228,14 @@ function hasSameDayDuty(staffId, date, assignments = [], excludeSlot = null) {
   const inSaved = state.rosterAssignments.some(a => a.staff_id === staffId && a.duty_date === date && (!ex || (a.id || a._temp_id) !== ex));
   return inDraft || inSaved;
 }
+function isConsecutiveRestrictedDuty(code) { return ['ชบด1','ชบด2','ชบด3'].includes(String(code || '')); }
 function hasAdjacentDuty(staffId, date, assignments = [], excludeSlot = null) {
+  if (excludeSlot && !isConsecutiveRestrictedDuty(excludeSlot.duty_code)) return false;
   const d = parseDate(date);
   const prev = new Date(d); prev.setDate(d.getDate() - 1);
   const next = new Date(d); next.setDate(d.getDate() + 1);
   const prevStr = toDateInput(prev), nextStr = toDateInput(next);
-  return hasDutyOnDate(staffId, prevStr, assignments, excludeSlot) || hasDutyOnDate(staffId, nextStr, assignments, excludeSlot);
+  return hasRestrictedDutyOnDate(staffId, prevStr, assignments, excludeSlot) || hasRestrictedDutyOnDate(staffId, nextStr, assignments, excludeSlot);
 }
 function hasDutyOnDate(staffId, date, assignments = [], excludeSlot = null) {
   const ex = excludeSlot ? (excludeSlot.id || excludeSlot._temp_id) : null;
@@ -3207,14 +3243,19 @@ function hasDutyOnDate(staffId, date, assignments = [], excludeSlot = null) {
   const inSaved = state.rosterAssignments.some(a => a.staff_id === staffId && a.duty_date === date && (!ex || (a.id || a._temp_id) !== ex));
   return inDraft || inSaved;
 }
+function hasRestrictedDutyOnDate(staffId, date, assignments = [], excludeSlot = null) {
+  const ex = excludeSlot ? (excludeSlot.id || excludeSlot._temp_id) : null;
+  const isMatch = a => a && String(a.staff_id) === String(staffId) && normalizeDateKey(a.duty_date) === date && isConsecutiveRestrictedDuty(a.duty_code) && (!ex || (a.id || a._temp_id) !== ex);
+  return (assignments || []).some(isMatch) || (state.rosterAssignments || []).some(isMatch);
+}
 function canStaffWorkSlot(staffId, slot, assignments = getAssignmentsForMonth(state.monthKey)) {
   const s = state.staff.find(x => x.id === staffId);
   if (!isRosterEnabled(s)) return false;
   if (!supportsRequiredRole(s, slot.required_role)) return false;
-  const blocked = state.leaves.some(l => l.staff_id === staffId && overlapsDate(l, slot.duty_date));
+  const blocked = !!activeLeaveRecordOn(staffId, slot.duty_date);
   if (blocked) return false;
   if (hasSameDayDuty(staffId, slot.duty_date, assignments, slot)) return false;
-  if (hasAdjacentDuty(staffId, slot.duty_date, assignments, slot)) return false;
+  if (isConsecutiveRestrictedDuty(slot?.duty_code) && hasAdjacentDuty(staffId, slot.duty_date, assignments, slot)) return false;
   return true;
 }
 function adjacentDutyPenalty(staffId, date, assignments) {
@@ -4042,8 +4083,9 @@ function bindGlobalEvents() {
   $('mobileMenuBtn').addEventListener('click', () => {
     const sidebar = $('sidebar');
     if (window.innerWidth > 820) {
-      sidebar.classList.toggle('collapsed');
-      document.body.classList.toggle('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+      document.body.classList.toggle('cnmi-sidebar-hidden');
+      sidebar.classList.remove('collapsed');
+      document.body.classList.remove('sidebar-collapsed');
       return;
     }
     sidebar.classList.toggle('open');
@@ -4524,8 +4566,9 @@ function bindGlobalEvents() {
     $('mobileMenuBtn').addEventListener('click', () => {
       const sidebar = $('sidebar');
       if (window.innerWidth > 820) {
-        sidebar.classList.toggle('collapsed');
-        document.body.classList.toggle('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+        document.body.classList.toggle('cnmi-sidebar-hidden');
+        sidebar.classList.remove('collapsed');
+        document.body.classList.remove('sidebar-collapsed');
       } else {
         sidebar.classList.toggle('open');
         document.body.classList.toggle('sidebar-open', sidebar.classList.contains('open'));
@@ -4607,4 +4650,195 @@ function bindGlobalEvents() {
     document.body.addEventListener('dragleave', handleDragLeave);
     document.body.addEventListener('drop', handleDrop);
   };
+})();
+/* V153 targeted SRS patch: exact leave labels, role-position no-duty logic, days-off strict rule, sidebar hide */
+(function v153TargetedFixes(){
+  function truthy(v) { return v === true || ['true','1','yes','y','active','ใช้งาน','เปิด','จัดเวร'].includes(String(v ?? '').trim().toLowerCase()); }
+  function pickLeaveText(row) {
+    const candidates = [row?.leave_type, row?.reason_type, row?.leave_category, row?.sub_type, row?.type, row?.reason, row?.note, row?.title]
+      .map(v => String(v ?? '').split(':::')[0].trim())
+      .filter(Boolean);
+    const known = ['ลาป่วย','ลากิจ','ลาพักผ่อน','ลาพักร้อน','ลาคลอด','ไม่รับเวร','ลาอุปสมบท','ลาอบรม','ลาอื่นๆ','อื่นๆ'];
+    for (const k of known) {
+      const hit = candidates.find(t => t === k || t.includes(k));
+      if (hit) return k === 'อื่นๆ' ? 'ลาอื่นๆ' : k;
+    }
+    const generic = candidates.find(t => !['ลา/ไม่รับเวร','ลางาน','ลา'].includes(t));
+    if (generic) return generic;
+    return candidates.includes('ไม่รับเวร') ? 'ไม่รับเวร' : 'ลาอื่นๆ';
+  }
+
+  try {
+    isActiveStaff = window.isActiveStaff = function isActiveStaffV153(s) {
+      if (!s) return false;
+      if (Object.prototype.hasOwnProperty.call(s, 'active')) return truthy(s.active);
+      if (Object.prototype.hasOwnProperty.call(s, 'is_active')) return truthy(s.is_active);
+      return false;
+    };
+    isRosterStatusEnabled = window.isRosterStatusEnabled = function isRosterStatusEnabledV153(s) {
+      if (!s) return false;
+      const keys = ['roster_enabled','duty_enabled','can_roster','is_roster_enabled','schedule_enabled','is_schedule_enabled','จัดเวร','สถานะจัดเวร'];
+      const key = keys.find(k => Object.prototype.hasOwnProperty.call(s, k));
+      return key ? truthy(s[key]) : false;
+    };
+    isActiveRosterStaff = window.isActiveRosterStaff = function isActiveRosterStaffV153(s) {
+      return isActiveStaff(s) && isRosterStatusEnabled(s) && s?.staff_type !== 'แพทย์' && !s?.maternity_status;
+    };
+    isRosterEnabled = window.isRosterEnabled = function isRosterEnabledV153(s) { return isActiveRosterStaff(s); };
+    isDailyPositionEnabled = window.isDailyPositionEnabled = function isDailyPositionEnabledV153(s) {
+      return isActiveStaff(s) && s?.staff_type !== 'แพทย์' && !s?.maternity_status && s?.position_training_status !== 'งดจัดชั่วคราว' && s?.position_training_status !== 'น้องใหม่ / ยังไม่จัดอัตโนมัติ';
+    };
+  } catch (_) {}
+
+  try {
+    leaveDisplayType = window.leaveDisplayType = function leaveDisplayTypeV153(row) { return pickLeaveText(row); };
+    isNoDutyLeaveType = window.isNoDutyLeaveType = function isNoDutyLeaveTypeV153(typeOrRow) {
+      const t = typeof typeOrRow === 'object' ? leaveDisplayType(typeOrRow) : String(typeOrRow || '').split(':::')[0].trim();
+      return t === 'ไม่รับเวร';
+    };
+    leaveCellClass = window.leaveCellClass = function leaveCellClassV153(typeOrRow) {
+      const t = typeof typeOrRow === 'object' ? leaveDisplayType(typeOrRow) : String(typeOrRow || '').split(':::')[0].trim();
+      if (t === 'ลากิจ') return 'leave-personal';
+      if (t === 'ลาป่วย') return 'leave-sick';
+      if (t === 'ลาพักผ่อน' || t === 'ลาพักร้อน') return 'leave-vacation';
+      if (t === 'ลาคลอด') return 'leave-maternity';
+      if (t === 'ไม่รับเวร') return 'leave-no-duty';
+      return 'leave-other';
+    };
+    leaveCellBadge = window.leaveCellBadge = function leaveCellBadgeV153(row) {
+      if (!row) return '';
+      const t = leaveDisplayType(row);
+      return `<span class="mini-status ${leaveCellClass(row)}">${escapeHtml(t)}</span>`;
+    };
+  } catch (_) {}
+
+  try {
+    calculateDaysOff = window.calculateDaysOff = function calculateDaysOffV153(staffId, key=state.monthKey, assignments=scheduleAssignmentsForMonth(key)) {
+      return scheduleMonthDates(key).reduce((sum, date) => {
+        if (!(isWeekend(date) || isHolidayDate(date))) return sum;
+        if (hasAnyDutyOn(staffId, date, assignments)) return sum;
+        if (activeLeaveRecordOn(staffId, date)) return sum;
+        return sum + 1;
+      }, 0);
+    };
+  } catch (_) {}
+
+  try {
+    renderGridView = window.renderGridView = function renderGridViewV153(staffList, assignments, key=state.monthKey) {
+      const dates = scheduleMonthDates(key);
+      return `<div class="table-wrap clean-grid-wrap"><table id="scheduleTable" class="clean-schedule-grid"><thead><tr><th class="clean-sticky-col">เจ้าหน้าที่</th>${dates.map(date => {
+        const d = parseDate(date);
+        const off = isWeekend(date) || isHolidayDate(date);
+        const hname = isHolidayDate(date) ? `<br><small>${escapeHtml(holidayName(date))}</small>` : '';
+        return `<th class="${off ? 'offday-col' : ''}">${d.getDate()}<br><span>${d.toLocaleDateString('th-TH', { weekday:'short' })}</span>${hname}</th>`;
+      }).join('')}</tr></thead><tbody>${(staffList || []).filter(isRosterEnabled).map(st => {
+        const bg = staffColor(st);
+        const fg = textColorFor(bg);
+        return `<tr><th class="clean-sticky-col clean-staff-cell" style="--staff-bg:${bg};--staff-fg:${fg};background:${bg};color:${fg}"><button type="button" data-staff-stat="${st.id}">${escapeHtml(st.nickname || st.full_name || '-')}</button></th>${dates.map(date => {
+          const shifts = (assignments || [])
+            .filter(a => String(a?.staff_id) === String(st.id) && normalizeDateKey(a?.duty_date) === date)
+            .sort((a,b) => dutySortIndex(a?.duty_code) - dutySortIndex(b?.duty_code));
+          const off = isWeekend(date) || isHolidayDate(date);
+          const leave = activeLeaveRecordOn(st.id, date);
+          const leaveCls = leave ? leaveCellClass(leave) : '';
+          const leaveHtml = leave ? leaveCellBadge(leave) : '';
+          const shiftHtml = shifts.length ? shifts.map(a => {
+            const attrs = canRequestTrade(a) ? `data-trade-duty="${a.id}"` : `data-staff-stat="${st.id}"`;
+            return `<button type="button" class="clean-shift-pill" style="--staff-bg:${bg};--staff-fg:${fg};background:${bg};color:${fg}" ${attrs}>${escapeHtml(dutyDisplayLabel(a?.duty_code))}</button>`;
+          }).join('') : '';
+          return `<td class="${off ? 'offday-col' : ''} ${leaveCls}"><div class="clean-cell-stack">${leaveHtml}${shiftHtml}${(!shiftHtml && off && !leave) ? '<span class="muted">หยุด</span>' : ''}</div></td>`;
+        }).join('')}</tr>`;
+      }).join('')}</tbody></table></div>`;
+    };
+  } catch (_) {}
+
+  try {
+    buildMonthPositionSummary = window.buildMonthPositionSummary = function buildMonthPositionSummaryV153(rows, dates) {
+      const dateSet = new Set(dates || []);
+      const summary = {};
+      (rows || []).forEach(r => {
+        if (!r?.staff_id || !r?.work_date || (dateSet.size && !dateSet.has(r.work_date))) return;
+        if (isNoPositionDay(r.work_date)) return;
+        const leave = activeLeaveRecordOn(r.staff_id, r.work_date);
+        if (leave && !isNoDutyLeaveType(leave)) return;
+        const st = state.staff.find(s => String(s.id) === String(r.staff_id));
+        if (!st || !isDailyPositionEnabled(st)) return;
+        summary[r.staff_id] = summary[r.staff_id] || { zones:{}, positions:{}, dates:new Set(), rows:[] };
+        const zone = r.zone || 'ไม่ระบุห้อง';
+        const code = r.position_code || 'ไม่ระบุตำแหน่ง';
+        summary[r.staff_id].zones[zone] = (summary[r.staff_id].zones[zone] || 0) + 1;
+        summary[r.staff_id].positions[code] = (summary[r.staff_id].positions[code] || 0) + 1;
+        summary[r.staff_id].dates.add(r.work_date);
+        summary[r.staff_id].rows.push(r);
+      });
+      return summary;
+    };
+
+    renderMonthPositionMatrix = window.renderMonthPositionMatrix = function renderMonthPositionMatrixV153(rows, dates) {
+      if (!(rows || []).length) return empty('ยังไม่มีแผนรายเดือน กด “สร้างแผนทั้งเดือน” ก่อน');
+      const byCell = {};
+      (rows || []).forEach((r, idx) => {
+        if (!r?.staff_id || !r?.work_date) return;
+        const key = `${r.staff_id}|${r.work_date}`;
+        byCell[key] = byCell[key] || [];
+        byCell[key].push({ ...r, _idx: idx });
+      });
+      const canEdit = isAdmin() && state.page === 'positionMonth';
+      const displayStaff = orderedStaff(state.staff.filter(s => isDailyPositionEnabled(s) || (rows || []).some(r => String(r?.staff_id) === String(s.id))));
+      return `<div class="monthly-matrix-wrap v153-position-matrix">
+        <div class="matrix-legend"><span class="legend-box weekend"></span> WEEKEND/HOLIDAY = ไม่จัดตำแหน่ง <span class="legend-box outing"></span> ออกหน่วย <span class="legend-box leave"></span> แสดงเฉพาะลางานจริง / ไม่รับเวรยังจัดตำแหน่งได้ ${canEdit ? '<span class="hint">Admin เลือกตำแหน่งในช่องได้ แล้วกดบันทึกแผนทั้งเดือน</span>' : ''}</div>
+        <div class="table-wrap month-position-matrix"><table><thead><tr><th class="sticky-col staff-col">เจ้าหน้าที่</th>${dates.map(date => {
+          const d = parseDate(date);
+          const cls = isHolidayDate(date) ? 'holiday-head' : isWeekend(date) ? 'weekend-head' : hasOuting(date) ? 'outing-head' : '';
+          return `<th class="date-head ${cls}"><b>${d.getDate()}</b><br><span>${d.toLocaleDateString('th-TH', { weekday:'short' })}</span></th>`;
+        }).join('')}</tr></thead><tbody>
+          ${displayStaff.map(st => `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${staffColor(st)};color:${textColorFor(staffColor(st))}"><button class="staff-summary-trigger" data-month-position-stat="${st.id}" type="button" title="ดูสรุปตำแหน่งรายเดือนของ ${escapeHtml(st.nickname || st.full_name || '')}"><b>${escapeHtml(st.nickname || st.full_name || '-')}</b><br><small>${escapeHtml(st.staff_type || '')}</small><span>ดูสรุป</span></button></td>${dates.map(date => renderMonthPositionCell(st, date, byCell[`${st.id}|${date}`] || [], canEdit)).join('')}</tr>`).join('')}
+        </tbody></table></div>
+      </div>`;
+    };
+
+    renderMonthPositionCell = window.renderMonthPositionCell = function renderMonthPositionCellV153(staff, date, cellRows, canEdit=false) {
+      const key = normalizeDateKey(date);
+      const isWeekendDay = isWeekend(key);
+      const isHolidayDay = isHolidayDate(key);
+      if (isWeekendDay || isHolidayDay) {
+        return `<td class="matrix-cell no-position-day ${isHolidayDay ? 'holiday-cell' : 'weekend-cell'}"><span>${isHolidayDay ? 'HOLIDAY' : 'WEEKEND'}</span></td>`;
+      }
+      const leaveRow = activeLeaveRecordOn(staff?.id, key);
+      const leaveType = leaveDisplayType(leaveRow);
+      const isRealLeave = !!leaveRow && !isNoDutyLeaveType(leaveRow);
+      const outing = hasOuting(key);
+      const row = (cellRows || [])[0] || null;
+      const cleanCodes = (cellRows || []).map(r => positionLabelForCell(r?.position_code || r?.code)).filter(Boolean);
+      const cls = `${outing ? 'outing-cell' : ''} ${isRealLeave ? 'leave-cell ' + leaveCellClass(leaveRow) : ''} ${!cleanCodes.length && !isRealLeave ? 'needs-review-cell' : ''}`.trim();
+      if (canEdit && !isRealLeave) {
+        const current = row?.position_code || '';
+        return `<td class="matrix-cell ${cls}"><select class="month-position-select" data-month-position-edit="${key}|${staff?.id}"><option value="">รอตรวจสอบ</option>${ALL_POSITION_TEMPLATES.map(t => `<option value="${escapeHtml(t.code)}" ${current===t.code?'selected':''}>${escapeHtml(positionLabelForCell(t.code))}</option>`).join('')}</select>${outing ? '<div class="cell-note">ออกหน่วย</div>' : ''}</td>`;
+      }
+      const text = cleanCodes.length ? cleanCodes.join('<br>') : (isRealLeave ? escapeHtml(leaveType) : '');
+      const leaveMark = isRealLeave ? '<div class="cell-note">ลางาน</div>' : '';
+      const outingMark = outing && cleanCodes.length ? '<div class="cell-note">ออกหน่วย</div>' : '';
+      return `<td class="matrix-cell ${cls}">${text ? `<span>${text}</span>` : ''}${leaveMark}${outingMark}</td>`;
+    };
+  } catch (_) {}
+
+  try {
+    const oldBind = window.bindGlobalEvents || bindGlobalEvents;
+    bindGlobalEvents = window.bindGlobalEvents = function bindGlobalEventsV153() {
+      oldBind();
+      const btn = document.getElementById('mobileMenuBtn');
+      const sidebar = document.getElementById('sidebar');
+      if (!btn || !sidebar || btn.dataset.v153SidebarBound === '1') return;
+      btn.dataset.v153SidebarBound = '1';
+      btn.addEventListener('click', function(ev) {
+        if (window.innerWidth > 820) {
+          ev.stopImmediatePropagation();
+          document.body.classList.toggle('cnmi-sidebar-hidden');
+          sidebar.classList.remove('open','collapsed');
+          document.body.classList.remove('sidebar-open','sidebar-collapsed');
+          setTimeout(() => window.dispatchEvent(new Event('resize')), 0);
+        }
+      }, true);
+    };
+  } catch (_) {}
 })();
