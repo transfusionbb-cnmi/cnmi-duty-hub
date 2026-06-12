@@ -1620,12 +1620,30 @@ function renderLeavePage() {
 function renderLeaveTable(rows) {
   if (!rows.length) return empty('ยังไม่มีรายการ');
   const table = `<div class="table-wrap desktop-table leave-desktop-table"><table><thead><tr><th>ชื่อ</th><th>ประเภท</th><th>ช่วงวันที่</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${escapeHtml(staffNick(r.staff_id))}${r.recorded_by_admin ? '<br><span class="badge purple">Admin บันทึกแทน</span>' : ''}</td><td>${badge(r.type, leaveBadgeClass(r.type))}</td><td>${formatThaiDate(r.start_date)} - ${formatThaiDate(r.end_date)}<br><span class="badge blue">${escapeHtml(r.leave_period || 'เต็มวัน')}</span><br><span class="muted">${escapeHtml(r.note || '')}</span>${r.admin_record_reason ? `<br><span class="muted">เหตุผล Admin: ${escapeHtml(r.admin_record_reason)}</span>` : ''}</td><td>${badge(r.status || 'active', r.status==='cancelled'?'red':'green')}</td><td><div class="actions">
-      ${canEditOwn(r) ? `<button class="tiny-btn" data-edit-leave="${r.id}">แก้ไข</button><button class="tiny-btn danger" data-cancel-leave="${r.id}">ยกเลิก</button>${isAdmin() ? `<button class="tiny-btn danger" data-delete-leave="${r.id}">ลบทิ้ง</button>` : ''}` : '<span class="muted">แก้ไม่ได้</span>'}
-    </div></td></tr>`).join('')}
+    ${rows.map(r => `<tr><td>${escapeHtml(staffNick(r.staff_id))}${r.recorded_by_admin ? '<br><span class="badge purple">Admin บันทึกแทน</span>' : ''}${leaveCancellationBadge(r)}</td><td>${badge(r.type, leaveBadgeClass(r.type))}</td><td>${formatThaiDate(r.start_date)} - ${formatThaiDate(r.end_date)}<br><span class="badge blue">${escapeHtml(r.leave_period || 'เต็มวัน')}</span><br><span class="muted">${escapeHtml(r.note || '')}</span>${r.admin_record_reason ? `<br><span class="muted">เหตุผล Admin: ${escapeHtml(r.admin_record_reason)}</span>` : ''}</td><td>${leaveStatusBadge(r)}</td><td><div class="actions">${renderLeaveActions(r)}</div></td></tr>`).join('')}
   </tbody></table></div>`;
-  const cards = `<div class="mobile-cards">${rows.map(r => `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(staffNick(r.staff_id))}</h3>${badge(r.type, leaveBadgeClass(r.type))}</div><div><b>${formatThaiDate(r.start_date)} - ${formatThaiDate(r.end_date)}</b><br>${badge(r.leave_period || 'เต็มวัน','blue')} ${badge(r.status || 'active', r.status==='cancelled'?'red':'green')}</div>${r.recorded_by_admin ? '<span class="badge purple">Admin บันทึกแทน</span>' : ''}<span class="muted">${escapeHtml(r.note || '')}</span><div class="actions">${canEditOwn(r) ? `<button class="tiny-btn" data-edit-leave="${r.id}">แก้ไข</button><button class="tiny-btn danger" data-cancel-leave="${r.id}">ยกเลิก</button>${isAdmin() ? `<button class="tiny-btn danger" data-delete-leave="${r.id}">ลบทิ้ง</button>` : ''}` : '<span class="muted">แก้ไม่ได้</span>'}</div></div>`).join('')}</div>`;
+  const cards = `<div class="mobile-cards">${rows.map(r => `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(staffNick(r.staff_id))}</h3>${badge(r.type, leaveBadgeClass(r.type))}</div><div><b>${formatThaiDate(r.start_date)} - ${formatThaiDate(r.end_date)}</b><br>${badge(r.leave_period || 'เต็มวัน','blue')} ${leaveStatusBadge(r)}</div>${r.recorded_by_admin ? '<span class="badge purple">Admin บันทึกแทน</span>' : ''}${leaveCancellationBadge(r)}<span class="muted">${escapeHtml(r.note || '')}</span><div class="actions">${renderLeaveActions(r)}</div></div>`).join('')}</div>`;
   return table + cards;
+}
+function isLeaveCancellationRequested(row) {
+  const st = String(row?.status || '').trim();
+  return row?.cancellation_requested === true || st === 'รออนุมัติยกเลิก' || st === 'cancel_requested' || st === 'pending_cancel';
+}
+function leaveStatusBadge(row) {
+  if (isLeaveCancellationRequested(row)) return badge('รออนุมัติยกเลิก', 'orange');
+  return badge(row?.status || 'active', row?.status === 'cancelled' ? 'red' : 'green');
+}
+function leaveCancellationBadge(row) {
+  return isLeaveCancellationRequested(row) ? '<br><span class="badge orange">พนักงานขอยกเลิก</span>' : '';
+}
+function renderLeaveActions(row) {
+  if (isAdmin()) {
+    return `${canEditOwn(row) ? `<button class="tiny-btn" data-edit-leave="${row.id}">แก้ไข</button>` : ''}<button class="tiny-btn danger" data-delete-leave="${row.id}">ลบ</button>`;
+  }
+  if (row?.staff_id !== currentStaffId() || row?.status === 'cancelled') return '<span class="muted">แก้ไม่ได้</span>';
+  if (isLeaveCancellationRequested(row)) return '<span class="badge orange">ส่งคำขอยกเลิกแล้ว</span>';
+  const editBtn = canEditOwn(row) ? `<button class="tiny-btn" data-edit-leave="${row.id}">แก้ไข</button>` : '';
+  return `${editBtn}<button class="tiny-btn warn" data-request-cancel-leave="${row.id}">ส่งคำขอยกเลิกวันลา</button>`;
 }
 function canEditOwn(row) {
   if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return true;
@@ -2849,6 +2867,7 @@ async function handleClick(e) {
   if (t.dataset.editLeave) { state.editingLeaveId = t.dataset.editLeave; renderPage(); return; }
   if (t.hasAttribute('data-cancel-edit-leave')) { state.editingLeaveId = null; renderPage(); return; }
   if (t.dataset.cancelLeave) { await cancelLeave(t.dataset.cancelLeave); return; }
+  if (t.dataset.requestCancelLeave) { await requestCancelLeave(t.dataset.requestCancelLeave); return; }
   if (t.dataset.deleteLeave) { await deleteLeave(t.dataset.deleteLeave); return; }
   if (t.dataset.editActivity) { state.editingActivityId = t.dataset.editActivity; renderPage(); return; }
   if (t.hasAttribute('data-cancel-edit-activity')) { state.editingActivityId = null; renderPage(); return; }
@@ -3034,10 +3053,21 @@ async function saveLeave(form) {
   showToast(backdated ? 'บันทึกลาย้อนหลังแทนเจ้าหน้าที่แล้ว' : 'บันทึกแล้ว');
 }
 async function cancelLeave(id) {
+  if (!isAdmin()) return showToast('Staff ไม่สามารถยกเลิกรายการลาเองได้ กรุณาส่งคำขอยกเลิกวันลา');
   if (!(await confirmDialog('ยืนยันยกเลิกรายการนี้?', 'ยืนยันการยกเลิก'))) return;
   const { error } = await sb.from('leave_requests').update({ status:'cancelled', updated_by: currentStaffId() }).eq('id', id);
   if (error) return showToast(friendlyDbError(error));
   await loadAllData(); renderPage(); showToast('ยกเลิกแล้ว');
+}
+async function requestCancelLeave(id) {
+  const row = state.leaves.find(x => String(x.id) === String(id));
+  if (!row || String(row.staff_id) !== String(currentStaffId())) return showToast('ส่งคำขอยกเลิกได้เฉพาะรายการของตัวเอง');
+  if (row.status === 'cancelled') return showToast('รายการนี้ถูกยกเลิกแล้ว');
+  if (isLeaveCancellationRequested(row)) return showToast('ส่งคำขอยกเลิกไว้แล้ว รอ Admin พิจารณา');
+  if (!(await confirmDialog('ระบบจะไม่ลบรายการลา แต่จะส่งคำขอให้ Admin พิจารณายกเลิก ต้องการดำเนินการใช่ไหม?', 'ส่งคำขอยกเลิกวันลา'))) return;
+  const { error } = await sb.from('leave_requests').update({ status:'รออนุมัติยกเลิก', updated_by: currentStaffId() }).eq('id', id).eq('staff_id', currentStaffId());
+  if (error) return showToast(friendlyDbError(error));
+  await loadAllData(); renderPage(); showToast('ส่งคำขอยกเลิกวันลาแล้ว');
 }
 async function deleteLeave(id) {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้นที่ลบทิ้งได้');
