@@ -2057,11 +2057,15 @@ function hasAnyDutyOn(staffId, date, assignments) {
 }
 function calculateDaysOff(staffId, key=state.monthKey, assignments=scheduleAssignmentsForMonth(key)) {
   return scheduleMonthDates(key).reduce((sum, date) => {
+    // Business Rule v157:
+    // 1) Count only calendar off-days: Sat/Sun/Public Holiday.
+    // 2) Count only when this staff has no roster shift on that date.
+    // 3) Leave / ไม่รับเวร must NOT block counting if conditions 1-2 are true.
     const isCalendarOff = isWeekend(date) || isHolidayDate(date);
     if (!isCalendarOff) return sum;
-    if (hasAnyDutyOn(staffId, date, assignments)) return sum;
-    const leave = activeLeaveRecordOn(staffId, date);
-    return sum + (leave || !hasAnyDutyOn(staffId, date, assignments) ? 1 : 0);
+    const hasDuty = hasAnyDutyOn(staffId, date, assignments);
+    if (hasDuty) return sum;
+    return sum + 1;
   }, 0);
 }
 function renderBalanceDashboard(staffList, assignments, key=state.monthKey) {
@@ -4768,11 +4772,17 @@ function bindGlobalEvents() {
   } catch (_) {}
 
   try {
-    calculateDaysOff = window.calculateDaysOff = function calculateDaysOffV153(staffId, key=state.monthKey, assignments=scheduleAssignmentsForMonth(key)) {
+    calculateDaysOff = window.calculateDaysOff = function calculateDaysOffV157(staffId, key=state.monthKey, assignments=scheduleAssignmentsForMonth(key)) {
       return scheduleMonthDates(key).reduce((sum, date) => {
-        if (!(isWeekend(date) || isHolidayDate(date))) return sum;
-        if (hasAnyDutyOn(staffId, date, assignments)) return sum;
-        if (activeLeaveRecordOn(staffId, date)) return sum;
+        // ชั้นนอกสุดต้องเป็นประเภทวันเท่านั้น: วันธรรมดาไม่ถูกนับเสมอ
+        const isCalendarOff = isWeekend(date) || isHolidayDate(date);
+        if (!isCalendarOff) return sum;
+
+        // ถ้ามีเวรใดๆ ในวันหยุดนั้น ห้ามนับเป็นวันหยุดสะสม
+        const hasDuty = hasAnyDutyOn(staffId, date, assignments);
+        if (hasDuty) return sum;
+
+        // สถานะ ลา / ไม่รับเวร ไม่ขัดขวางการนับ หากเป็นวันหยุดและไม่มีเวร
         return sum + 1;
       }, 0);
     };
