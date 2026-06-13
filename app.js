@@ -4491,20 +4491,64 @@ function bindGlobalEvents() {
   window.resolveLoginIdentifier = async function resolveLoginIdentifierV57(loginId) {
     const raw = s(loginId);
     if (!raw) throw new Error('กรุณากรอกชื่อผู้ใช้หรืออีเมล');
+
+    // Email login: ส่งเข้า Supabase Auth ตรง ๆ ตามเดิม
     if (raw.includes('@')) {
       const email = low(raw);
       if (!requireMahidolEmail(email)) throw new Error('ใช้ได้เฉพาะอีเมล @mahidol.ac.th');
       return email;
     }
-    if (!/^[a-zA-Z0-9._-]+$/.test(raw)) throw new Error('ชื่อผู้ใช้ใช้ได้เฉพาะอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง');
+
+    // Username login: หา email ที่ผูกกับ login_name ใน staff_profiles ก่อน แล้วค่อยนำ email ไป Auth
+    const username = low(raw);
+    if (!/^[a-zA-Z0-9._-]{1,30}$/.test(username)) throw new Error('ชื่อผู้ใช้ใช้ได้เฉพาะอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง');
+
+    try {
+      const q = await sb
+        .from('staff_profiles')
+        .select('email, login_name, is_active')
+        .ilike('login_name', username)
+        .limit(2);
+      if (!q.error) {
+        const rows = q.data || [];
+        if (rows.length > 1) throw new Error('ชื่อผู้ใช้นี้ซ้ำในระบบ กรุณาให้ Admin ตรวจผู้ใช้งานและสิทธิ์');
+        if (rows.length === 1) {
+          const row = rows[0];
+          if (row.is_active === false) throw new Error('บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อ Admin');
+          if (!row.email) throw new Error('บัญชีนี้ยังไม่ได้ผูกอีเมล กรุณาติดต่อ Admin');
+          if (!requireMahidolEmail(row.email)) throw new Error('บัญชีนี้ไม่ได้ใช้อีเมล Mahidol กรุณาติดต่อ Admin');
+          return low(row.email);
+        }
+      } else {
+        console.warn('[login] direct staff_profiles username lookup skipped:', q.error.message || q.error);
+      }
+    } catch (err) {
+      if (err?.message && /ซ้ำ|ถูกปิด|ไม่ได้ผูก|ไม่ได้ใช้อีเมล/i.test(err.message)) throw err;
+      console.warn('[login] direct staff_profiles username lookup failed:', err);
+    }
+
+    // Fallback สำหรับโปรเจกต์ที่เปิด RLS แล้ว anon อ่าน staff_profiles ไม่ได้
     for (const fn of ['resolve_login_identifier_v57', 'resolve_login_identifier_v56']) {
       try {
-        const r = await sb.rpc(fn, { p_identifier: raw });
-        if (!r.error && r.data) return low(r.data);
-      } catch (_) {}
+        const r = await sb.rpc(fn, { p_identifier: username });
+        if (r.error) {
+          const rpcMsg = String(r.error.message || '');
+          if (/DUPLICATE_LOGIN_NAME/i.test(rpcMsg)) throw new Error('ชื่อผู้ใช้นี้ซ้ำในระบบ กรุณาให้ Admin ตรวจผู้ใช้งานและสิทธิ์');
+          if (/ACCOUNT_INACTIVE/i.test(rpcMsg)) throw new Error('บัญชีนี้ถูกปิดใช้งาน กรุณาติดต่อ Admin');
+          continue;
+        }
+        if (r.data) {
+          const email = low(r.data);
+          if (!requireMahidolEmail(email)) throw new Error('บัญชีนี้ไม่ได้ใช้อีเมล Mahidol กรุณาติดต่อ Admin');
+          return email;
+        }
+      } catch (err) {
+        if (err?.message && /ซ้ำ|ถูกปิด|ไม่ได้ใช้อีเมล/i.test(err.message)) throw err;
+      }
     }
     throw new Error('ไม่พบชื่อผู้ใช้นี้ กรุณาตรวจสอบกับ Admin');
   };
+  try { resolveLoginIdentifier = window.resolveLoginIdentifier; } catch (_) {}
 
   window.dashboardDutySortOrder = function dashboardDutySortOrderV57(date) {
     if (isHolidayDate(date)) return ['ชบด1','ชบด2','ชบด3'];
@@ -5862,9 +5906,20 @@ function bindGlobalEvents() {
       const pwInput = v162$('loginPassword');
       const title = document.querySelector('.auth-card h1');
       const subtitle = document.querySelector('.auth-card > p.muted');
-      if (loginInput) { loginInput.setAttribute('type','email'); loginInput.setAttribute('placeholder','name@mahidol.ac.th'); }
+      if (loginInput) {
+        loginInput.setAttribute('type','text');
+        loginInput.setAttribute('placeholder','Username หรือ name@mahidol.ac.th');
+        loginInput.setAttribute('autocomplete','username');
+        loginInput.removeAttribute('pattern');
+        loginInput.removeAttribute('inputmode');
+        const label = loginInput.closest('label');
+        if (label) {
+          const textNode = Array.from(label.childNodes || []).find(n => n.nodeType === Node.TEXT_NODE && String(n.textContent || '').trim());
+          if (textNode) textNode.textContent = 'Username หรือ อีเมล Mahidol\n          ';
+        }
+      }
       if (pwInput) pwInput.setAttribute('placeholder','เช่น CNMI@รหัสพนักงาน');
-      if (subtitle && !v162IsRecoveryMode()) subtitle.textContent = 'กรอกอีเมล Mahidol และ Password เพื่อเข้าสู่ระบบ';
+      if (subtitle && !v162IsRecoveryMode()) subtitle.textContent = 'กรอก Username หรือ อีเมล Mahidol และ Password เพื่อเข้าสู่ระบบ';
       if (title && !v162IsRecoveryMode()) title.textContent = 'ระบบเวรและกิจกรรมหน่วยงาน';
       if (setupForm) { setupForm.classList.add('hidden'); setupForm.classList.remove('active'); setupForm.setAttribute('aria-hidden','true'); }
       if (!v162IsRecoveryMode() && loginForm) {

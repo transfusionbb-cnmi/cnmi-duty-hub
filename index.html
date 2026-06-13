@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=162" />
+  <link rel="stylesheet" href="style.css?v=164" />
 </head>
 <body>
   <div id="setupWarning" class="setup-warning hidden">
@@ -19,7 +19,7 @@
     <div class="auth-card">
       <div class="brand-mark">CNMI</div>
       <h1>ระบบเวรและกิจกรรมหน่วยงาน</h1>
-      <p class="muted">กรอกอีเมล Mahidol และ Password เพื่อเข้าสู่ระบบ</p>
+      <p class="muted">กรอก Username หรือ อีเมล Mahidol และ Password เพื่อเข้าสู่ระบบ</p>
 
       <div class="auth-tabs hidden" aria-hidden="true">
         <button class="auth-tab active" data-auth-tab="login" type="button">เข้าสู่ระบบ</button>
@@ -27,8 +27,8 @@
       </div>
 
       <form id="loginForm" class="auth-panel active">
-        <label>อีเมล Mahidol
-          <input id="loginEmail" type="email" placeholder="name@mahidol.ac.th" autocomplete="username" required>
+        <label>Username หรือ อีเมล Mahidol
+          <input id="loginEmail" type="text" placeholder="Username หรือ name@mahidol.ac.th" autocomplete="username" required>
         </label>
         <label>รหัสผ่าน
           <input id="loginPassword" type="password" placeholder="เช่น CNMI@รหัสพนักงาน" autocomplete="current-password" required>
@@ -103,7 +103,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js?v=149"></script>
   <script src="patch-v136-preauth.js?v=149"></script>
-  <script src="app.js?v=162"></script>
+  <script src="app.js?v=164"></script>
   <script src="patch-v136-auth-layout-tabs-final.js?v=149"></script>
   <script src="patch-v137-critical-regression-restore.js?v=149"></script>
   <script src="patch-v138-password-complete-redirect.js?v=149"></script>
