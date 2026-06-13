@@ -1566,3 +1566,100 @@ body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
   .v158-position-matrix .staff-color-cell{min-width:96px!important;max-width:112px!important;}
   .v158-position-matrix .missing-role-cell{min-width:92px;max-width:106px;font-size:9px;}
 }
+
+/* V159: compact monthly-position staff columns, roster swap DnD, leave filters */
+.leave-filter-bar{
+  display:flex;
+  gap:10px;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  margin:0 0 12px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#f8fbff;
+}
+.leave-filter-bar label{flex:1 1 160px;min-width:150px;}
+.leave-filter-bar select{width:100%;}
+.roster-slot.has-staff[draggable="true"]{cursor:grab;}
+.roster-slot.has-staff[draggable="true"]:active{cursor:grabbing;}
+.roster-slot.dragging{opacity:.62;border-style:solid;}
+.roster-slot.drag-over{outline:2px solid rgba(128,202,255,.65);outline-offset:2px;}
+.v159-position-matrix{--month-staff-col-width:112px;--month-summary-col-width:72px;}
+.v159-position-matrix .month-position-matrix table{min-width:1580px;}
+.v159-position-matrix .staff-col{
+  min-width:var(--month-staff-col-width)!important;
+  max-width:var(--month-staff-col-width)!important;
+  width:var(--month-staff-col-width)!important;
+}
+.v159-position-matrix .summary-col{
+  position:sticky;
+  left:var(--month-staff-col-width);
+  z-index:4;
+  min-width:var(--month-summary-col-width)!important;
+  max-width:var(--month-summary-col-width)!important;
+  width:var(--month-summary-col-width)!important;
+  box-shadow:4px 0 10px rgba(31,50,72,.06);
+}
+.v159-position-matrix thead .summary-col{z-index:6;background:#f6f9fc;}
+.v159-position-matrix tbody .summary-col{background:#ffffff;}
+.v159-position-matrix .staff-color-cell{
+  padding:4px 7px!important;
+  line-height:1.05!important;
+}
+.v159-position-matrix .matrix-staff-name{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-height:24px;
+  white-space:nowrap;
+}
+.v159-position-matrix .matrix-staff-name b{font-size:12px;line-height:1;}
+.v159-position-matrix .matrix-staff-name small{font-size:9px;line-height:1;opacity:.88;}
+.v159-position-matrix .summary-action-cell{padding:4px 6px!important;text-align:center!important;}
+.v159-position-matrix .summary-action-cell .staff-summary-trigger{
+  width:auto;
+  min-width:54px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:#eff6ff;
+  color:#1d4e89;
+  border:1px solid #bfdbfe;
+  font-size:10px;
+  text-decoration:none;
+}
+.v159-position-matrix .summary-action-cell .staff-summary-trigger:hover{background:#dbeafe;}
+.v159-position-matrix .matrix-cell{padding-top:5px!important;padding-bottom:5px!important;}
+.v159-position-matrix .cell-note{display:none!important;}
+@media(max-width:720px){
+  .leave-filter-bar{display:grid;grid-template-columns:1fr;}
+  .leave-filter-bar label{min-width:0;width:100%;}
+  .v159-position-matrix{--month-staff-col-width:96px;--month-summary-col-width:62px;}
+  .v159-position-matrix .matrix-staff-name{gap:4px;}
+  .v159-position-matrix .summary-action-cell .staff-summary-trigger{min-width:48px;padding:3px 6px;font-size:9px;}
+}
+
+/* V160 targeted responsive UI patch */
+.calendar-card-grid .calendar-card-cell{appearance:none;border:1px solid var(--line);text-align:left;cursor:pointer;transition:.15s;}
+.calendar-card-grid .calendar-card-cell:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(31,50,72,.10);}
+.calendar-card-grid .fake-btn{pointer-events:none;}
+@media(max-width:820px){
+  .calendar-card-grid{display:grid;grid-template-columns:repeat(7,minmax(96px,1fr));overflow-x:auto;padding-bottom:8px;}
+  .calendar-card-grid .calendar-dayname{position:sticky;top:0;z-index:2;min-width:96px;}
+  .calendar-card-grid .calendar-card-cell{min-width:96px;min-height:118px;padding:8px;}
+  .calendar-card-grid .event-pill{font-size:10px;padding:4px 6px;}
+}
+.clean-balance-dashboard .table-wrap{overflow:auto!important;}
+.clean-balance-table th:first-child,.clean-balance-table td:first-child{position:sticky!important;left:0!important;z-index:20!important;background:#fff!important;box-shadow:2px 0 0 #e5e7eb;}
+.clean-balance-table thead th:first-child{z-index:25!important;background:#f8fafc!important;}
+.v160-schedule-grid .clean-summary-head,.v160-schedule-grid .clean-summary-cell{position:sticky!important;left:112px!important;z-index:19!important;background:#fff!important;min-width:70px!important;width:70px!important;max-width:70px!important;box-shadow:2px 0 0 #e5e7eb;}
+.v160-schedule-grid thead .clean-summary-head{z-index:24!important;background:#f8fafc!important;}
+.v160-schedule-grid .clean-staff-head,.v160-schedule-grid .clean-staff-cell{left:0!important;min-width:112px!important;width:112px!important;max-width:112px!important;}
+.v160-schedule-grid .clean-staff-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.v160-position-matrix .staff-col{left:0!important;}
+.v160-position-matrix .summary-col{left:var(--month-staff-col-width)!important;}
+@media(max-width:700px){
+  .clean-balance-table th:first-child,.clean-balance-table td:first-child{min-width:110px!important;max-width:130px!important;}
+  .v160-schedule-grid .clean-staff-head,.v160-schedule-grid .clean-staff-cell{min-width:96px!important;width:96px!important;max-width:96px!important;}
+  .v160-schedule-grid .clean-summary-head,.v160-schedule-grid .clean-summary-cell{left:96px!important;min-width:62px!important;width:62px!important;max-width:62px!important;}
+}
