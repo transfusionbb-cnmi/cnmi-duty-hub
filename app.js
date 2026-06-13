@@ -2992,6 +2992,7 @@ function handleGlobalChromeClick(e) {
   }
 }
 async function handleSubmit(e) {
+  if (e.target.id === 'positionMasterForm') { e.preventDefault(); return; }
   if (e.target.id === 'leaveForm') { e.preventDefault(); await saveLeave(e.target); }
   if (e.target.id === 'activityForm') { e.preventDefault(); await saveActivity(e.target); }
   if (e.target.classList.contains('hr-form')) { e.preventDefault(); await saveHrCheck(e.target); }
@@ -9739,9 +9740,21 @@ function bindGlobalEvents() {
   function clearStaleRecoveryGuard182(context='position-management') {
     try {
       const rawUrl = `${window.location.search || ''}${window.location.hash || ''}`;
-      const hasActiveAuthLink = /type=(recovery|password_recovery|invite)|mode=(recovery|set-password|update-password)|access_token=|refresh_token=|token_hash=|(^|[?#&])code=/i.test(rawUrl);
       const appVisible = !$('appView')?.classList?.contains('hidden');
-      if (!hasActiveAuthLink && appVisible) {
+      // V195: mode=recovery without a real Supabase token is a stale URL marker, not an active password-reset link.
+      // Keeping it while the normal app is visible can make an Admin jump back to recovery mode after saving a position.
+      const hasRealAuthLink = /type=(password_recovery|invite)|access_token=|refresh_token=|token_hash=|(^|[?#&])code=/i.test(rawUrl);
+      const hasStaleRecoveryMode = /type=recovery|mode=(recovery|set-password|update-password)/i.test(rawUrl) && !hasRealAuthLink;
+      if (appVisible && hasStaleRecoveryMode) {
+        if (typeof clearPasswordSetupForced === 'function') clearPasswordSetupForced();
+        if (typeof RECOVERY_INTENT !== 'undefined') RECOVERY_INTENT = false;
+        if (typeof AUTH_LINK_PROCESSING !== 'undefined') AUTH_LINK_PROCESSING = false;
+        try {
+          if (window.history?.replaceState) window.history.replaceState({}, document.title, (typeof appBaseUrl === 'function' ? appBaseUrl() : window.location.pathname));
+        } catch (_) {}
+        return;
+      }
+      if (!hasRealAuthLink && appVisible) {
         if (typeof clearPasswordSetupForced === 'function') clearPasswordSetupForced();
         if (typeof RECOVERY_INTENT !== 'undefined') RECOVERY_INTENT = false;
         if (typeof AUTH_LINK_PROCESSING !== 'undefined') AUTH_LINK_PROCESSING = false;
@@ -10001,6 +10014,7 @@ function bindGlobalEvents() {
     setBusy(false);
     if (res.error) return safeToast182(friendly182(res.error), { tone:'error' });
     clearStaleRecoveryGuard182('after-position-save');
+    state.page = 'positionManagement';
     state.editingPositionMasterId = null;
     state.showPositionMasterForm = false;
     await refreshPositionMasters182();
