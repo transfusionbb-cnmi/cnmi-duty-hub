@@ -10794,6 +10794,7 @@ function bindGlobalEvents() {
    - Staff Section 3 always shows only own OT rows and never shows Admin approval buttons.
    - Admin Section 3 shows every OT row with Edit/Delete + existing approval actions.
    - Editing approved rows requires resetting approval back to pending; claimed/exported rows are protected.
+   - V192 hotfix: OT edit popup submit is fully prevented from native page refresh / login redirect.
    ========================= */
 (function(){
   'use strict';
@@ -11055,7 +11056,7 @@ function bindGlobalEvents() {
     showModal(`<div class="v191-ot-edit-modal">
       <h2>แก้ไขรายการ OT</h2>
       ${modalNotice191(row)}
-      <form id="otEditFormV191" class="form-grid compact-form">
+      <form id="otEditFormV191" class="form-grid compact-form" action="javascript:void(0)" onsubmit="return false;">
         <input type="hidden" name="id" value="${esc191(row.id)}">
         ${staffField}
         <label>วันที่เริ่ม/วันที่ทำ OT <input name="work_date" type="date" value="${esc191(workDate)}" ${disabled} required></label>
@@ -11066,10 +11067,23 @@ function bindGlobalEvents() {
         <label class="wide">เหตุผล <textarea name="reason" rows="3" ${disabled} required>${esc191(row.reason || '')}</textarea></label>
         <label class="wide">รายละเอียด/หมายเหตุ <textarea name="note" rows="3" ${disabled} placeholder="เช่น ลงย้อนหลังแทนน้อง / รอเทียบ LIS">${esc191(note)}</textarea></label>
         ${approvedGuard}
-        <div class="actions wide modal-form-actions"><button type="button" class="ghost-btn" onclick="closeModal()">ยกเลิก</button>${isClaimed191(row) ? '' : '<button class="primary-btn" type="submit">บันทึกการแก้ไข</button>'}</div>
+        <div class="actions wide modal-form-actions"><button type="button" class="ghost-btn" onclick="closeModal()">ยกเลิก</button>${isClaimed191(row) ? '' : '<button class="primary-btn" type="button" data-save-ot-edit-v191>บันทึกการแก้ไข</button>'}</div>
       </form>
     </div>`, { large:true });
     setTimeout(() => syncEditHours191(document.getElementById('otEditFormV191')), 30);
+  }
+  async function ensureActiveSession191(){
+    try {
+      if (!sb?.auth?.getSession) return;
+      const { data, error } = await sb.auth.getSession();
+      if (error) throw error;
+      const session = data?.session || null;
+      if (!session?.access_token) throw new Error('Session หมดอายุ กรุณาบันทึกงานค้างไว้แล้วเข้าสู่ระบบใหม่');
+      state.session = session;
+      if (session.user && state.user !== session.user) state.user = session.user;
+    } catch (err) {
+      throw new Error(err?.message || 'ตรวจสอบ Session ไม่สำเร็จ');
+    }
   }
   async function updateOtWithFallback191(id, payload){
     const attempts = [];
@@ -11121,13 +11135,16 @@ function bindGlobalEvents() {
       payload.reviewed_by = null;
       payload.reviewed_at = null;
     }
+    const pageBeforeSave = state?.page || 'ot';
     setBusy(true, 'กำลังบันทึกการแก้ไข OT');
     try {
+      await ensureActiveSession191();
       await updateOtWithFallback191(id, payload);
+      try { window.alert('บันทึกสำเร็จ'); } catch (_) {}
       closeModal();
       await loadAllData();
+      state.page = pageBeforeSave;
       renderPage();
-      showToast(payload.status === 'รออนุมัติ' ? 'บันทึกการแก้ไขแล้ว และปรับสถานะกลับเป็นรออนุมัติ' : 'บันทึกการแก้ไข OT แล้ว');
     } catch (err) {
       const msg = String(err?.message || err || '');
       const friendly = /row-level security|permission/i.test(msg)
@@ -11165,6 +11182,16 @@ function bindGlobalEvents() {
   window.openEditModal = window.openEditOtModal = openEditOtModal191;
 
   document.addEventListener('click', async function(e){
+    const saveBtn = e.target?.closest?.('[data-save-ot-edit-v191]');
+    if (saveBtn) {
+      e.preventDefault(); e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      const form = saveBtn.closest('#otEditFormV191');
+      if (!form) return showToast('ไม่พบฟอร์มแก้ไข OT กรุณาปิด Popup แล้วเปิดใหม่', { tone:'error' });
+      if (typeof form.reportValidity === 'function' && !form.reportValidity()) return;
+      await saveEditOt191(form);
+      return;
+    }
     const editBtn = e.target?.closest?.('[data-edit-ot]');
     if (editBtn) {
       e.preventDefault(); e.stopPropagation();
