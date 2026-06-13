@@ -2056,3 +2056,37 @@ textarea {
 @media (max-width: 820px) {
   .v170-checkin-fields { grid-template-columns: 1fr !important; }
 }
+
+/* V171: tighter sticky staff-name column for overview/QC tables */
+.v169-overview-table .sticky-name-col {
+  width: 136px !important;
+  min-width: 136px !important;
+  max-width: 152px !important;
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v169-overview-table .sticky-name-col .staff-color-pill {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.v169-overview-table tbody .sticky-name-col {
+  z-index: 7;
+  background: #fff;
+}
+.v169-overview-table thead .sticky-name-col {
+  z-index: 9;
+  background: #f6f9fc;
+}
+@media (max-width: 720px) {
+  .v169-overview-table .sticky-name-col {
+    width: 118px !important;
+    min-width: 118px !important;
+    max-width: 132px !important;
+  }
+}

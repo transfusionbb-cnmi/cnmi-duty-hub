@@ -7621,3 +7621,127 @@ function bindGlobalEvents() {
 
   window.v170OtEndDateHelpers = { otEndDateV170, calcDateTimeHoursV170, noteEndDateV170 };
 })();
+
+/* =========================
+   V171 OT Default Times + Weekend Helper + Sticky Overview Names
+   - Section 1 defaults: start 08:00, end date D+1, end 08:00.
+   - Section 2 defaults: start time follows selected date via otStartHourForDate().
+   - Adds OT reason: มาช่วยงาน เสาร์-อาทิตย์.
+   ========================= */
+(function(){
+  'use strict';
+  const VERSION_V171 = 'V171_OT_DEFAULT_TIME_STICKY_NAME';
+  const WEEKEND_HELP_REASON_V171 = 'มาช่วยงาน เสาร์-อาทิตย์';
+
+  function esc171(v){
+    try { return escapeHtml(v == null ? '' : String(v)); }
+    catch (_) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  }
+  function datePlusDaysV171(date, days){
+    const key = normalizeDateKey(date) || todayStr();
+    const d = parseDate(key);
+    d.setDate(d.getDate() + Number(days || 0));
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  function defaultOtExtraStartTimeV171(date){
+    const key = normalizeDateKey(date) || todayStr();
+    // ใช้ helper เดิมของระบบ เพื่อไม่ให้ logic วันหยุดราชการเดิมเสีย
+    return `${pad(otStartHourForDate(key))}:00`;
+  }
+  function addWeekendHelpReasonV171(){
+    try {
+      if (!Array.isArray(OT_REASONS) || OT_REASONS.includes(WEEKEND_HELP_REASON_V171)) return;
+      const otherIdx = OT_REASONS.findIndex(r => String(r).trim() === 'อื่นๆ');
+      if (otherIdx >= 0) OT_REASONS.splice(otherIdx, 0, WEEKEND_HELP_REASON_V171);
+      else OT_REASONS.push(WEEKEND_HELP_REASON_V171);
+    } catch (err) { console.warn(`${VERSION_V171} reason patch skipped`, err); }
+  }
+  function replaceInputValueV171(html, inputName, value){
+    const safeValue = esc171(value);
+    const re = new RegExp(`(<input\\b(?=[^>]*\\bname=["']${inputName}["'])(?=[^>]*\\btype=["'](?:time|date)["'])[^>]*?)>`, 'i');
+    return String(html || '').replace(re, (whole, open) => {
+      if (/\svalue=["'][^"']*["']/i.test(open)) return `${open.replace(/\svalue=["'][^"']*["']/i, ` value="${safeValue}"`)}>`;
+      return `${open} value="${safeValue}">`;
+    });
+  }
+  function tuneAttendanceFormV171(formHtml){
+    const today = todayStr();
+    const tomorrow = datePlusDaysV171(today, 1);
+    let out = String(formHtml || '');
+    out = replaceInputValueV171(out, 'start_time', '08:00');
+    out = replaceInputValueV171(out, 'end_date', tomorrow);
+    out = replaceInputValueV171(out, 'end_time', '08:00');
+    out = out.replace(/data-v170-last-start="[^"]*"/i, `data-v170-last-start="${esc171(today)}" data-v171-last-start="${esc171(today)}" data-v171-last-end-default="${esc171(tomorrow)}"`);
+    if (!/data-v171-last-start=/i.test(out)) {
+      out = out.replace(/(<div\b[^>]*class="[^"]*v170-checkin-fields[^"]*"[^>]*)>/i, `$1 data-v171-last-start="${esc171(today)}" data-v171-last-end-default="${esc171(tomorrow)}">`);
+    }
+    return out;
+  }
+  function tuneOtExtraFormV171(formHtml){
+    const today = todayStr();
+    let out = String(formHtml || '');
+    out = replaceInputValueV171(out, 'start_time', defaultOtExtraStartTimeV171(today));
+    return out;
+  }
+  function tuneOtHtmlV171(html){
+    let out = String(html || '');
+    out = out.replace(/<form\s+id="attendanceForm"[\s\S]*?<\/form>/i, m => tuneAttendanceFormV171(m));
+    out = out.replace(/<form\s+id="otForm"[\s\S]*?<\/form>/i, m => tuneOtExtraFormV171(m));
+    return out;
+  }
+
+  const previousRenderOtPageV171 = window.renderOtPage || (typeof renderOtPage === 'function' ? renderOtPage : null);
+  if (previousRenderOtPageV171) {
+    window.renderOtPage = renderOtPage = function renderOtPageV171(){
+      addWeekendHelpReasonV171();
+      return tuneOtHtmlV171(previousRenderOtPageV171.apply(this, arguments));
+    };
+  } else {
+    addWeekendHelpReasonV171();
+  }
+
+  function syncAttendanceDefaultsV171(form){
+    if (!form) return;
+    const box = form.querySelector('.v170-checkin-fields') || form;
+    const startDateInput = form.querySelector('input[name="duty_date"]');
+    const startTimeInput = form.querySelector('input[name="start_time"]');
+    const endDateInput = form.querySelector('input[name="end_date"]');
+    const endTimeInput = form.querySelector('input[name="end_time"]');
+    const startDate = normalizeDateKey(startDateInput?.value) || todayStr();
+    const nextDate = datePlusDaysV171(startDate, 1);
+    const oldStart = box.dataset.v171LastStart || startDateInput?.defaultValue || todayStr();
+    const oldDefaultEnd = box.dataset.v171LastEndDefault || datePlusDaysV171(oldStart, 1);
+    if (endDateInput && (!endDateInput.value || endDateInput.value === oldDefaultEnd || endDateInput.value === oldStart || endDateInput.value === startDate)) {
+      endDateInput.value = nextDate;
+    }
+    if (startTimeInput && !startTimeInput.value) startTimeInput.value = '08:00';
+    if (endTimeInput && !endTimeInput.value) endTimeInput.value = '08:00';
+    box.dataset.v171LastStart = startDate;
+    box.dataset.v171LastEndDefault = nextDate;
+  }
+  function syncOtExtraStartTimeV171(form){
+    if (!form) return;
+    const dateInput = form.querySelector('input[name="work_date"]');
+    const startTimeInput = form.querySelector('input[name="start_time"]');
+    if (!dateInput || !startTimeInput) return;
+    startTimeInput.value = defaultOtExtraStartTimeV171(dateInput.value || todayStr());
+  }
+
+  document.addEventListener('change', function(e){
+    const attendanceDate = e.target?.closest?.('#attendanceForm input[name="duty_date"]');
+    if (attendanceDate) {
+      syncAttendanceDefaultsV171(attendanceDate.form);
+      return;
+    }
+    const otDate = e.target?.closest?.('#otForm input[name="work_date"]');
+    if (otDate) syncOtExtraStartTimeV171(otDate.form);
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    addWeekendHelpReasonV171();
+    syncAttendanceDefaultsV171(document.getElementById('attendanceForm'));
+    syncOtExtraStartTimeV171(document.getElementById('otForm'));
+  });
+
+  window.v171OtDefaultHelpers = { datePlusDaysV171, defaultOtExtraStartTimeV171, syncAttendanceDefaultsV171, syncOtExtraStartTimeV171 };
+})();
