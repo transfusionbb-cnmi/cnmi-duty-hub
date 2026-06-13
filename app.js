@@ -471,17 +471,50 @@ function setBusy(on, msg='กำลังโหลด') {
 function showModal(html, opts={}) {
   const modal = $('modal');
   const body = $('modalBody');
+  if (window.__modalCloseTimerV193) {
+    clearTimeout(window.__modalCloseTimerV193);
+    window.__modalCloseTimerV193 = null;
+  }
   body.innerHTML = html;
+  modal.classList.remove('modal-closing', 'modal-ready', 'modal-ot-edit-v193');
   modal.classList.toggle('modal-sm', !!opts.small);
   modal.classList.toggle('modal-lg', !!opts.large);
+  if (opts.className) {
+    String(opts.className).split(/\s+/).filter(Boolean).forEach(cls => modal.classList.add(cls));
+  }
   modal.classList.remove('hidden');
   document.body.classList.add('modal-open');
   requestAnimationFrame(() => {
+    modal.classList.add('modal-ready');
     const card = modal.querySelector('.modal-card');
     if (card) card.scrollTop = 0;
   });
 }
-function closeModal() { $('modal').classList.add('hidden'); $('modal').classList.remove('modal-sm','modal-lg'); $('modalBody').innerHTML = ''; document.body.classList.remove('modal-open'); }
+function closeModal() {
+  const modal = $('modal');
+  const body = $('modalBody');
+  if (!modal) return;
+  const finishClose = () => {
+    modal.classList.add('hidden');
+    modal.classList.remove('modal-sm','modal-lg','modal-closing','modal-ready','modal-ot-edit-v193');
+    if (body) body.innerHTML = '';
+    document.body.classList.remove('modal-open');
+    window.__modalCloseTimerV193 = null;
+  };
+  if (modal.classList.contains('hidden')) {
+    finishClose();
+    return;
+  }
+  modal.classList.add('modal-closing');
+  modal.classList.remove('modal-ready');
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) {
+    finishClose();
+    return;
+  }
+  if (window.__modalCloseTimerV193) clearTimeout(window.__modalCloseTimerV193);
+  window.__modalCloseTimerV193 = setTimeout(finishClose, 190);
+}
 function confirmDialog(message, title='ยืนยันการทำรายการ') {
   return new Promise(resolve => {
     showModal(`<div class="confirm-box app-confirm"><div class="app-alert-icon warn">?</div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p><div class="confirm-actions"><button class="ghost-btn" data-confirm-no>ยกเลิก</button><button class="primary-btn" data-confirm-yes>ตกลง</button></div></div>`, { small:true });
@@ -11069,7 +11102,7 @@ function bindGlobalEvents() {
         ${approvedGuard}
         <div class="actions wide modal-form-actions"><button type="button" class="ghost-btn" onclick="closeModal()">ยกเลิก</button>${isClaimed191(row) ? '' : '<button class="primary-btn" type="button" data-save-ot-edit-v191>บันทึกการแก้ไข</button>'}</div>
       </form>
-    </div>`, { large:true });
+    </div>`, { large:true, className:'modal-ot-edit-v193' });
     setTimeout(() => syncEditHours191(document.getElementById('otEditFormV191')), 30);
   }
   async function ensureActiveSession191(){

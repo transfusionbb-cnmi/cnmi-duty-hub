@@ -2891,3 +2891,87 @@ thead .v179-sticky-first-col {
   .v191-ot-actions, .v191-status-actions { width:100%; }
   .v191-status-actions { border-left:0; padding-left:0; }
 }
+
+
+/* V193: centered OT edit modal with dimmed overlay and smooth transition */
+.modal.modal-ot-edit-v193 {
+  position: fixed !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  padding: 0 !important;
+  background: rgba(15, 23, 42, .48) !important;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 12000 !important;
+  opacity: 1;
+  transition: opacity .18s ease;
+}
+.modal.modal-ot-edit-v193.modal-closing {
+  opacity: 0;
+  pointer-events: none;
+}
+.modal.modal-ot-edit-v193 .modal-card {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: min(720px, calc(100vw - 32px)) !important;
+  max-height: min(86vh, 780px) !important;
+  overflow: auto !important;
+  border-radius: 28px !important;
+  padding: 24px !important;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, .34) !important;
+  transform: translate(-50%, -50%) scale(1);
+  animation: otEditModalCenterInV193 .18s cubic-bezier(.2,.85,.25,1) both !important;
+  will-change: opacity, transform;
+}
+.modal.modal-ot-edit-v193.modal-closing .modal-card {
+  animation: none !important;
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 10px)) scale(.985) !important;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.modal.modal-ot-edit-v193 .v191-ot-edit-modal h2 {
+  margin-top: 0;
+  padding-right: 34px;
+}
+.modal.modal-ot-edit-v193 .v191-ot-edit-modal .modal-form-actions {
+  position: sticky;
+  bottom: -24px;
+  background: linear-gradient(180deg, rgba(255,255,255,.80), #fff 42%);
+  padding-top: 14px;
+  margin-top: 4px;
+}
+@keyframes otEditModalCenterInV193 {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px)) scale(.975);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@media (max-width: 760px) {
+  .modal.modal-ot-edit-v193 .modal-card {
+    width: min(94vw, 720px) !important;
+    max-height: 88vh !important;
+    padding: 20px !important;
+    border-radius: 24px !important;
+  }
+  .modal.modal-ot-edit-v193 .v191-ot-edit-modal .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .modal.modal-ot-edit-v193 .v191-ot-edit-modal .modal-form-actions {
+    bottom: -20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal.modal-ot-edit-v193,
+  .modal.modal-ot-edit-v193 .modal-card,
+  .modal.modal-ot-edit-v193.modal-closing .modal-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}
