@@ -2322,3 +2322,24 @@ thead .v179-sticky-first-col {
 .position-master-note-card .profile-info-list { margin-top: 10px; }
 .v182-eligibility-page .position-check small { display: block; }
 .v182-position-matrix .month-position-select { min-width: 120px; }
+
+/* V183 OT approval date range filter */
+.v183-ot-date-filter .ot-filter-actions{
+  display:flex;
+  flex:0 0 auto;
+  gap:8px;
+  align-items:flex-end;
+  flex-wrap:wrap;
+}
+.v183-ot-date-filter .ot-filter-hint{
+  flex:1 0 100%;
+  margin:0;
+}
+@media(max-width:700px){
+  .v183-ot-date-filter .ot-filter-actions{
+    width:100%;
+  }
+  .v183-ot-date-filter .ot-filter-actions button{
+    flex:1 1 auto;
+  }
+}

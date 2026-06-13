@@ -9966,3 +9966,119 @@ function bindGlobalEvents() {
 
   console.info(`${VERSION_V182} loaded`);
 })();
+
+/* =========================
+   V183 OT Approval Date Range Filter
+   - Replace Section 3 month picker with Start Date / End Date filter.
+   - Empty dates show all rows; default is the current month to keep the list manageable.
+   ========================= */
+(function(){
+  'use strict';
+  const VERSION_V183 = 'V183_OT_APPROVAL_DATE_RANGE_FILTER';
+
+  function esc183(v){
+    try { return escapeHtml(v == null ? '' : String(v)); }
+    catch (_) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  }
+  function currentMonthRange183(){
+    try { return getMonthRange(monthKey(new Date())); }
+    catch (_) {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const last = new Date(y, d.getMonth() + 1, 0).getDate();
+      return { start:`${y}-${m}-01`, end:`${y}-${m}-${String(last).padStart(2, '0')}` };
+    }
+  }
+  function normalize183(v){
+    try { return normalizeDateKey(v); }
+    catch (_) { return String(v || '').slice(0, 10); }
+  }
+  function ensureOtDateDefaults183(){
+    const r = currentMonthRange183();
+    if (typeof state.otApprovalStartDate === 'undefined') state.otApprovalStartDate = r.start;
+    if (typeof state.otApprovalEndDate === 'undefined') state.otApprovalEndDate = r.end;
+  }
+  function otApprovalDateRange183(){
+    ensureOtDateDefaults183();
+    let start = normalize183(state.otApprovalStartDate || '');
+    let end = normalize183(state.otApprovalEndDate || '');
+    if (start && end && start > end) [start, end] = [end, start];
+    return { start, end };
+  }
+  function setOtThisMonth183(){
+    const r = currentMonthRange183();
+    state.otApprovalStartDate = r.start;
+    state.otApprovalEndDate = r.end;
+  }
+  function clearOtDateRange183(){
+    state.otApprovalStartDate = '';
+    state.otApprovalEndDate = '';
+  }
+
+  ensureOtDateDefaults183();
+
+  window.renderOtFilters = renderOtFilters = function renderOtFiltersV183(){
+    ensureOtDateDefaults183();
+    const status = state.otApprovalStatusFilter || 'รออนุมัติ';
+    const search = state.otApprovalSearch || '';
+    const start = state.otApprovalStartDate || '';
+    const end = state.otApprovalEndDate || '';
+    return `<div class="ot-approval-filter no-print v183-ot-date-filter">
+      <label>ค้นหา <input id="otApprovalSearch" type="search" value="${esc183(search)}" placeholder="ชื่อ / วันที่ / เหตุผล"></label>
+      <label>ตั้งแต่วันที่ <input id="otApprovalStartDate" type="date" value="${esc183(start)}"></label>
+      <label>ถึงวันที่ <input id="otApprovalEndDate" type="date" value="${esc183(end)}"></label>
+      <label>สถานะ <select id="otApprovalStatusFilter">
+        <option value="รออนุมัติ" ${status==='รออนุมัติ'?'selected':''}>รออนุมัติ</option>
+        <option value="อนุมัติ" ${status==='อนุมัติ'?'selected':''}>อนุมัติ</option>
+        <option value="ไม่อนุมัติ" ${status==='ไม่อนุมัติ'?'selected':''}>ไม่อนุมัติ</option>
+        <option value="ส่งกลับแก้ไข" ${status==='ส่งกลับแก้ไข'?'selected':''}>ส่งกลับแก้ไข</option>
+        <option value="all" ${status==='all'?'selected':''}>ทั้งหมด</option>
+      </select></label>
+      <div class="ot-filter-actions">
+        <button type="button" class="soft-btn" data-ot-filter-this-month>เดือนนี้</button>
+        <button type="button" class="ghost-btn" data-ot-filter-all>แสดงทั้งหมด</button>
+      </div>
+      <p class="hint ot-filter-hint">ตัวกรองช่วงวันที่เทียบจาก “วันที่ทำ OT” ถ้าล้างวันที่ทั้งสองช่อง ระบบจะแสดงรายการทั้งหมด</p>
+    </div>`;
+  };
+
+  window.filteredOtRows = filteredOtRows = function filteredOtRowsV183(rows){
+    const { start, end } = otApprovalDateRange183();
+    const status = state.otApprovalStatusFilter || 'รออนุมัติ';
+    const search = String(state.otApprovalSearch || '').trim().toLowerCase();
+    return (rows || []).filter(r => {
+      const workDate = normalize183(r?.work_date);
+      if (start && (!workDate || workDate < start)) return false;
+      if (end && (!workDate || workDate > end)) return false;
+      if (status !== 'all' && r.status !== status) return false;
+      if (search) {
+        const st = (state.staff || []).find(s => String(s.id) === String(r.staff_id));
+        const text = `${workDate} ${r.end_time || ''} ${r.reason || ''} ${r.note || ''} ${st?.nickname || ''} ${st?.full_name || ''}`.toLowerCase();
+        if (!text.includes(search)) return false;
+      }
+      return true;
+    }).sort((a,b) => normalize183(b?.work_date).localeCompare(normalize183(a?.work_date)) || String(b?.created_at || '').localeCompare(String(a?.created_at || '')));
+  };
+
+  document.addEventListener('change', function(e){
+    const t = e.target;
+    if (!t || !['otApprovalStartDate', 'otApprovalEndDate'].includes(t.id)) return;
+    state.otApprovalStartDate = document.getElementById('otApprovalStartDate')?.value || '';
+    state.otApprovalEndDate = document.getElementById('otApprovalEndDate')?.value || '';
+    renderPage();
+  }, true);
+
+  document.addEventListener('click', function(e){
+    const btn = e.target?.closest?.('[data-ot-filter-this-month], [data-ot-filter-all]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.hasAttribute('data-ot-filter-this-month')) setOtThisMonth183();
+    if (btn.hasAttribute('data-ot-filter-all')) clearOtDateRange183();
+    renderPage();
+  }, true);
+
+  window.v183OtApprovalFilter = { otApprovalDateRange183, setOtThisMonth183, clearOtDateRange183 };
+  console.info(`${VERSION_V183} loaded`);
+})();
