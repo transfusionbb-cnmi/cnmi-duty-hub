@@ -6635,19 +6635,15 @@ function bindGlobalEvents() {
       device: deviceInfo
     };
 
-    // V176: ข้อความในคอลัมน์ “เหตุผล” ต้องสั้น ไม่ซ้ำกับคอลัมน์ช่วงเวลาทำงาน/ชั่วโมง
-    // เก็บเฉพาะแหล่งที่มา + ประเภทเวร + หมายเหตุที่ผู้ใช้กรอกจริง
+    // V186: ข้อความในคอลัมน์ “เหตุผล” ต้องเหลือเฉพาะ ประเภทเวร + จำนวนเวลา OT + หมายเหตุ
+    // ไม่เก็บ/ไม่แสดงคำว่า Admin บันทึกแทน, HR_HOURS หรือข้อความซ้ำซ้อนในช่องเหตุผล
     const chosenDutyLabel = chosenDuty ? String(chosenDuty) : '';
-    const noteParts = isAdmin()
-      ? [
-          `บันทึกแทนโดย Admin (${staffNick(currentStaffId())})`,
-          chosenDutyLabel ? `ประเภทเวร: ${chosenDutyLabel}` : '',
-          adminNote ? `หมายเหตุ: ${adminNote}` : ''
-        ]
-      : [
-          'ยืนยันอยู่เวรตามตาราง (ส่วนที่ 1)',
-          chosenDutyLabel ? `ประเภทเวร: ${chosenDutyLabel}` : ''
-        ];
+    const displayHours = manualHours !== null ? manualHours : calculatedHours;
+    const noteParts = [
+      chosenDutyLabel ? `ประเภทเวร: ${chosenDutyLabel}` : '',
+      Number.isFinite(Number(displayHours)) ? `จำนวนเวลา OT: ${Math.round(Number(displayHours) * 10) / 10} ชั่วโมง` : '',
+      adminNote ? `หมายเหตุ: ${adminNote}` : ''
+    ];
 
     const otBase = {
       staff_id: staffId,
@@ -8123,41 +8119,80 @@ function bindGlobalEvents() {
     }
     return '';
   }
+  function cleanMemoText176(value){
+    let text = norm176(value);
+    if (!text) return '';
+    text = text.replace(/^หมายเหตุ\s*:\s*/i, '').trim();
+    text = text.replace(/บันทึกแทนโดย\s*Admin\s*\([^)]+\)/ig, '');
+    text = text.replace(/บันทึกแทนโดย\s*Admin/ig, '');
+    text = text.replace(/Admin\s*บันทึกแทนโดย\s*[^|]+/ig, '');
+    text = text.replace(/HR_HOURS\s*=\s*\d+(?:\.\d+)?/ig, '');
+    text = text.replace(/ประเภทเวร\s*:\s*[^|]+?(?=(?:จำนวนเวลา\s*OT|หมายเหตุ\s*:|$))/ig, '');
+    text = text.replace(/จำนวนเวลา\s*OT\s*:?\s*\d+(?:\.\d+)?\s*ชั่วโมง?/ig, '');
+    text = text.replace(/ชั่วโมงที่ต้องการเบิก\s*:?\s*\d+(?:\.\d+)?\s*ชั่วโมง?/ig, '');
+    text = text.replace(/รอบเบิก\s+\d{4}-\d{2}-\d{2}\s+ถึง\s+\d{4}-\d{2}-\d{2}/ig, '');
+    text = text.replace(/^ยืนยันอยู่เวรตามตาราง(?:\s*\([^)]*\))?/i, '');
+    text = text.replace(/^สร้างจากส่วนที่\s*1/i, '');
+    text = text.replace(/^หมายเหตุ\s*:\s*/i, '').trim();
+    text = text.replace(/\s*\|\s*/g, ' | ');
+    text = text.replace(/^\|+|\|+$/g, '').trim();
+    text = text.replace(/\s{2,}/g, ' ').trim();
+    return text;
+  }
   function adminMemo176(note){
     const out = [];
     for (const token of noteTokens176(note)) {
       const t = norm176(token);
-      if (!t || isLegacyTimeToken176(t)) continue;
-      if (/^ประเภทเวร\b/i.test(t)) continue;
-      if (/^บันทึกแทนโดย\s*Admin/i.test(t)) continue;
-      if (/^Admin\s*บันทึกแทนโดย/i.test(t)) continue;
-      if (/^ยืนยันอยู่เวรตามตาราง/i.test(t)) continue;
-      if (/^สร้างจากส่วนที่\s*1/i.test(t)) continue;
-      const m = t.match(/^หมายเหตุ\s*:\s*(.+)$/i);
-      out.push(m ? norm176(m[1]) : t);
+      if (!t) continue;
+      const cleaned = cleanMemoText176(t);
+      if (!cleaned) continue;
+      if (isLegacyTimeToken176(t) && cleaned === t) continue;
+      out.push(cleaned);
     }
     return out.join(' | ');
   }
+  function formatOtHours176(value){
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    const rounded = Math.round(n * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  }
+  function hoursFromOtText176(row){
+    const text = `${row?.note || ''} | ${row?.reason || ''}`;
+    let m = text.match(/จำนวนเวลา\s*OT\s*:?\s*(\d+(?:\.\d+)?)/i);
+    if (m) return Number(m[1]);
+    m = text.match(/HR_HOURS\s*=\s*(\d+(?:\.\d+)?)/i);
+    if (m) return Number(m[1]);
+    m = text.match(/ชั่วโมงที่ต้องการเบิก\s*:?\s*(\d+(?:\.\d+)?)/i);
+    if (m) return Number(m[1]);
+    const direct = Number(row?.manual_hours ?? row?.requested_hours ?? row?.hours ?? NaN);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    try {
+      if (typeof calcOtHours === 'function') {
+        const h = Number(calcOtHours(row));
+        if (Number.isFinite(h) && h > 0) return h;
+      }
+    } catch (_) {}
+    return null;
+  }
+  function cleanNonAttendanceNote176(note){
+    return noteTokens176(note)
+      .map(cleanMemoText176)
+      .filter(Boolean)
+      .join(' | ');
+  }
   function compactOtReasonText176(row){
     if (!isAttendanceOt176(row)) {
-      return { main: norm176(row?.reason) || '-', detail: norm176(row?.note) };
+      return { main: norm176(row?.reason) || '-', detail: cleanNonAttendanceNote176(row?.note) };
     }
     const note = norm176(row?.note);
     const duty = dutyFromNote176(note);
-    const reason = norm176(row?.reason);
-    if (/Admin/i.test(reason) || /Admin\s*บันทึกแทนโดย|บันทึกแทนโดย\s*Admin/i.test(note)) {
-      const recorder = adminRecorder176(note);
-      const memo = adminMemo176(note);
-      const parts = [
-        recorder ? `บันทึกแทนโดย Admin (${recorder})` : 'บันทึกแทนโดย Admin',
-        duty ? `ประเภทเวร: ${duty}` : '',
-        memo ? `หมายเหตุ: ${memo}` : ''
-      ].filter(Boolean);
-      return { main: parts.join(' | '), detail: '' };
-    }
+    const hours = formatOtHours176(hoursFromOtText176(row));
+    const memo = adminMemo176(note);
     const parts = [
-      'ยืนยันอยู่เวรตามตาราง (ส่วนที่ 1)',
-      duty ? `ประเภทเวร: ${duty}` : ''
+      `ประเภทเวร: ${duty || '-'}`,
+      hours ? `จำนวนเวลา OT: ${hours} ชั่วโมง` : '',
+      `หมายเหตุ: ${memo || '-'}`
     ].filter(Boolean);
     return { main: parts.join(' | '), detail: '' };
   }
@@ -8660,7 +8695,7 @@ function bindGlobalEvents() {
     if (!pos.ok) return showGpsHelp(pos.message);
     const deviceInfo = [navigator.userAgent, VERSION_V180, `admin:${staffNick(currentStaffId())}`, `start ${dutyDate} ${startTime}`, `end ${endDate} ${endTime}`].filter(Boolean).join(' | ').slice(0,250);
     const attendancePayload = { staff_id: staffId, duty_date: dutyDate, check_in_at: start.toISOString(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: deviceInfo };
-    const note = [`บันทึกแทนโดย Admin (${staffNick(currentStaffId())})`, `ประเภทเวร: ${dutyCode}`, `จำนวนเวลา OT: ${hours} ชั่วโมง`, `${HR_HOURS_TOKEN}${hours}`, adminNote ? `หมายเหตุ: ${adminNote}` : ''].filter(Boolean).join(' | ');
+    const note = [`ประเภทเวร: ${dutyCode}`, `จำนวนเวลา OT: ${hours} ชั่วโมง`, adminNote ? `หมายเหตุ: ${adminNote}` : ''].filter(Boolean).join(' | ');
     const otPayload = { staff_id: staffId, work_date: dutyDate, end_date: endDate, start_time: startTime, end_time: endTime, reason: 'ยืนยันอยู่เวรโดย Admin', note, status:'รออนุมัติ', lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: deviceInfo };
     setBusy(true, 'กำลังบันทึก Admin OT');
     try {
@@ -8695,7 +8730,7 @@ function bindGlobalEvents() {
     if (!reason) return showToast('กรุณาระบุเหตุผล', { tone:'error' });
     const cycle = hrCycleRange180(reportMonth180());
     const workDate = cycle.start;
-    const note = [`ชั่วโมงที่ต้องการเบิก: ${hours} ชั่วโมง`, `${HR_HOURS_TOKEN}${hours}`, `Admin บันทึกแทนโดย ${staffNick(currentStaffId())}`, `รอบเบิก ${cycle.start} ถึง ${cycle.end}`].join(' | ');
+    const note = [`จำนวนเวลา OT: ${hours} ชั่วโมง`, `รอบเบิก ${cycle.start} ถึง ${cycle.end}`].join(' | ');
     const pos = await getGps();
     const payload = { staff_id: staffId, work_date: workDate, start_time:'00:00', end_time:'00:00', reason, note, status:'รออนุมัติ', lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: `${navigator.userAgent} | ${VERSION_V180} admin simple OT`.slice(0,250) };
     setBusy(true, 'กำลังบันทึก OT เพิ่ม');
