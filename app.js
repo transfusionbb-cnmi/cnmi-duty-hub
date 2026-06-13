@@ -184,7 +184,7 @@ let state = {
 
 function isMobileView() { return window.matchMedia && window.matchMedia('(max-width: 820px)').matches; }
 function niceRoleRateLabel(value) {
-  return ({ mt:'เรท MT', kerk:'เรทเคิก', custom:'ตกลงกันเอง', receiver:'ตามเรทคนรับเวร', owner:'ตามเรทเจ้าของเวรเดิม' }[value] || value || '-');
+  return ({ mt:'เรท MT', kerk:'เรทเคิก', custom:'ตกลงกันเอง', receiver:'คำนวณอัตโนมัติ Cross-Rate', owner:'ตามเรทเจ้าของเวรเดิม' }[value] || value || '-');
 }
 
 function isSelfPaidTrade(r) {
@@ -463,7 +463,7 @@ function friendlyDbError(error) {
   if (msg.includes('null value') && msg.includes('roster_assignments') && msg.includes('id')) return 'บันทึกตารางเวรไม่สำเร็จ เพราะระบบกำลังส่งรหัสรายการเวรว่างอยู่ กรุณารีเฟรชหน้าแล้วกดสร้างร่าง/บันทึกใหม่อีกครั้ง';
   if (msg.includes('violates not-null constraint')) return 'บันทึกไม่สำเร็จ เพราะมีข้อมูลจำเป็นบางช่องว่างอยู่ กรุณาตรวจช่องที่ยังไม่ได้เลือก';
   if (msg.includes('duplicate key')) return 'บันทึกซ้ำกับข้อมูลเดิม กรุณารีเฟรชแล้วลองใหม่';
-  if (msg.includes('roster_trade_requests_rate_mode_check') || msg.includes('rate_mode_check') || msg.includes('roster_trade_requests_t_mode_check') || msg.includes('trade_type_check')) return 'ยังส่งคำขอแลก/ขาย/ยกเวรไม่ได้ เพราะฐานข้อมูลยังไม่รองรับรูปแบบคำขอ/เรทที่เลือก กรุณา Run SQL Patch V40 ก่อน';
+  if (msg.includes('roster_trade_requests_rate_mode_check') || msg.includes('rate_mode_check') || msg.includes('roster_trade_requests_t_mode_check') || msg.includes('trade_type_check')) return 'ยังส่งคำขอแลก/ขาย/ยกเวรไม่ได้ เพราะฐานข้อมูลยังไม่รองรับ rate_mode แบบ Cross-Rate กรุณา Run SQL Patch V188 ก่อน';
   if (msg.includes('row-level security')) return 'สิทธิ์ไม่พอสำหรับบันทึกข้อมูลนี้ กรุณาใช้บัญชี Admin หรืออินชาร์จที่ได้รับสิทธิ์';
   if (msg.includes('admin_upsert_leave_v32') || msg.includes('admin_upsert_leave_v31') || msg.includes('function public.admin_upsert_leave_v32') || msg.includes('function public.admin_upsert_leave_v31')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V32 ใน Supabase';
   if (msg.includes('admin_save_leave') || msg.includes('function public.admin_save_leave') || msg.includes('Could not find the function')) return 'ยังบันทึกลาแทนไม่ได้ เพราะยังไม่ได้ Run SQL Patch V32 ใน Supabase';
@@ -1299,17 +1299,38 @@ function supportsRequiredRole(staff, required) {
   if (required === 'MT_OR_TANG') return staff.staff_type === 'MT' || staff.nickname === 'แตง';
   return staff.staff_type === required;
 }
+function staffRecord(staffIdOrName) {
+  if (!staffIdOrName) return null;
+  if (typeof staffIdOrName === 'object') return staffIdOrName;
+  const key = String(staffIdOrName).trim();
+  return state.staff.find(x => String(x.id) === key || String(x.nickname || '').trim() === key || String(x.full_name || '').trim() === key) || null;
+}
+function normalizeDutyCodeForRate(dutyCode='') {
+  const code = String(dutyCode || '').trim();
+  if (['ช4A','ช4B','ช4-MT','ช4'].includes(code)) return 'ช4';
+  return code;
+}
+function isTangStaff(staffIdOrName) {
+  const s = staffRecord(staffIdOrName);
+  const raw = s ? `${s.nickname || ''} ${s.full_name || ''}` : String(staffIdOrName || '');
+  return raw.split(/\s+/).some(x => x.trim() === 'แตง') || String(s?.nickname || '').trim() === 'แตง';
+}
 function dutyStaffTypeForRate(staffId, dutyCode='') {
-  const s = state.staff.find(x => x.id === staffId);
+  const s = staffRecord(staffId);
+  const code = normalizeDutyCodeForRate(dutyCode);
+  // เงื่อนไขพิเศษ: แตงเป็นเคิกตามปกติ แต่ถ้าทำ ช3A/ช3B/ช4 ให้คิดเรท MT
+  if (isTangStaff(staffId)) return ['ช3A','ช3B','ช4'].includes(code) ? 'MT' : 'เคิก';
   if (!s) return 'MT';
-  if (['ช4A','ช4B'].includes(dutyCode) && s.nickname === 'แตง') return 'MT';
   return s.staff_type === 'เคิก' ? 'เคิก' : 'MT';
 }
-function dutyRatePerHour(staffId, date, dutyCode='') {
-  const type = dutyStaffTypeForRate(staffId, dutyCode);
+function getRate(staffIdOrName, dutyCode='', date=todayStr()) {
+  const type = dutyStaffTypeForRate(staffIdOrName, dutyCode);
   const publicHoliday = isHolidayDate(date);
   if (type === 'เคิก') return publicHoliday ? 120 : 90;
   return publicHoliday ? 160 : 130;
+}
+function dutyRatePerHour(staffId, date, dutyCode='') {
+  return getRate(staffId, dutyCode, date);
 }
 function dutyHoursForCode(date, dutyCode='') {
   if (['ช9-เคิก','ช9-MT'].includes(dutyCode)) return 8;
@@ -1335,6 +1356,11 @@ function dutyMetrics(a, staffIdOverride=null) {
 }
 function dutyHours(date, dutyCode='') { return dutyHoursForCode(date, dutyCode); }
 function dutyAmount(staffId, date, dutyCode='') { return dutyHoursForCode(date, dutyCode) * dutyRatePerHour(staffId, date, dutyCode); }
+function shiftPaymentHoursForCode(date, dutyCode='') {
+  // ใช้เฉพาะหน้าคำนวณแลก/ขายเวร: ช4 ให้คำนวณเป็น 8 ชม. เพื่อให้ระบบ Cross-Rate มีมูลค่า แต่ไม่ไปกระทบสมดุลเวรเดิม
+  if (normalizeDutyCodeForRate(dutyCode) === 'ช4') return 8;
+  return dutyHoursForCode(date, dutyCode);
+}
 function dutyRateByType(type, date) {
   const publicHoliday = isHolidayDate(date);
   if (type === 'เคิก') return publicHoliday ? 120 : 90;
@@ -1342,10 +1368,51 @@ function dutyRateByType(type, date) {
 }
 function tradeRateAmount(assignment, staffId, rateMode='receiver') {
   if (!assignment) return 0;
-  if (rateMode === 'mt') return dutyHoursForCode(assignment.duty_date, assignment.duty_code) * dutyRateByType('MT', assignment.duty_date);
-  if (rateMode === 'kerk') return dutyHoursForCode(assignment.duty_date, assignment.duty_code) * dutyRateByType('เคิก', assignment.duty_date);
+  if (rateMode === 'mt') return shiftPaymentHoursForCode(assignment.duty_date, assignment.duty_code) * dutyRateByType('MT', assignment.duty_date);
+  if (rateMode === 'kerk') return shiftPaymentHoursForCode(assignment.duty_date, assignment.duty_code) * dutyRateByType('เคิก', assignment.duty_date);
   const baseStaff = rateMode === 'owner' ? assignment.staff_id : staffId;
   return baseStaff ? dutyMetrics(assignment, baseStaff).pay : 0;
+}
+function calculateShiftPayment(assignment, sellerStaffId, receiverStaffId, tradeType='ขายเวร', rateMode='receiver') {
+  if (!assignment || tradeType === 'ยกเวร') return { hours:0, adjustedHours:0, sellerRate:0, receiverRate:0, amount:0, sellerType:'-', receiverType:'-', isCrossRate:false, rule:'ยกเวรไม่คิดค่าตอบแทน' };
+  const date = assignment.duty_date;
+  const code = assignment.duty_code || '';
+  const hours = shiftPaymentHoursForCode(date, code);
+  if (rateMode === 'mt' || rateMode === 'kerk') {
+    const forcedType = rateMode === 'mt' ? 'MT' : 'เคิก';
+    const forcedRate = dutyRateByType(forcedType, date);
+    return { hours, adjustedHours:hours, sellerRate:forcedRate, receiverRate:forcedRate, amount:hours * forcedRate, sellerType:forcedType, receiverType:forcedType, isCrossRate:false, rule:`บังคับ${niceRoleRateLabel(rateMode)}` };
+  }
+  const sellerType = dutyStaffTypeForRate(sellerStaffId, code);
+  const receiverType = dutyStaffTypeForRate(receiverStaffId, code);
+  const sellerRate = dutyRatePerHour(sellerStaffId, date, code);
+  const receiverRate = dutyRatePerHour(receiverStaffId, date, code);
+  let adjustedHours = hours;
+  let rule = 'คิดตามชั่วโมงจริงของผู้รับเวร';
+  if (sellerType === 'เคิก' && receiverType === 'MT' && receiverRate > 0) {
+    adjustedHours = hours * (sellerRate / receiverRate);
+    rule = 'เคิกขายเวรให้ MT: ปรับชั่วโมงตามส่วนต่างเรทเพื่อคุมงบเท่าเดิม';
+  } else if (sellerType === 'MT' && receiverType === 'เคิก') {
+    adjustedHours = hours;
+    rule = 'MT ขายเวรให้เคิก: เคิกเบิกตามชั่วโมงจริง ไม่ปรับลด';
+  }
+  const amount = Math.round(adjustedHours * receiverRate);
+  return { hours, adjustedHours, sellerRate, receiverRate, amount, sellerType, receiverType, isCrossRate:sellerType !== receiverType, rule };
+}
+function formatHoursValue(n) {
+  const v = Number(n || 0);
+  if (!Number.isFinite(v)) return '0';
+  return Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0+$/,'').replace(/\.$/,'');
+}
+function tradePaymentDisplay(r, from, to=null) {
+  const amount = Number(r.amount_from || 0);
+  let html = `${amount.toLocaleString()} บ.`;
+  if (r.rate_mode !== 'custom' && from?.id && r.requester_id && r.receiver_id) {
+    const p = calculateShiftPayment(from, r.requester_id, r.receiver_id, r.trade_type, r.rate_mode || 'receiver');
+    if (p.hours || p.adjustedHours) html += `<br><span class="muted">ชม.จริง ${formatHoursValue(p.hours)} / ชม.เบิก ${formatHoursValue(p.adjustedHours)} • ${p.sellerType}→${p.receiverType}</span>`;
+  }
+  if (Number(r.amount_diff || 0)) html += `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff || 0).toLocaleString()} บ.</span>`;
+  return html;
 }
 function weekKeyOf(date) {
   const d = parseDate(date);
@@ -2171,21 +2238,34 @@ function renderDutyTradePanel(assignments) {
   if (!visible.length) return `<div class="trade-panel"><h3>คำขอแลก/ขาย/ยกเวร</h3>${empty('ยังไม่มีคำขอแลก/ขาย/ยกเวรในเดือนนี้')}</div>`;
   return `<div class="trade-panel"><h3>คำขอแลก/ขาย/ยกเวร</h3><div class="table-wrap desktop-table"><table><thead><tr><th>ผู้ขอ</th><th>ผู้รับ/คู่แลก</th><th>รายการ</th><th>เงินโดยประมาณ</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${visible.map(r => renderTradeRow(r, assignments)).join('')}</tbody></table></div>${renderTradeCards(visible, assignments)}</div>`;
 }
+function renderTradeActionButtons(r) {
+  const actions = [];
+  const receiverActions = r.status === 'pending' && r.receiver_id === currentStaffId();
+  if (receiverActions) {
+    actions.push(`<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button>`);
+    actions.push(`<button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>`);
+  }
+  if (isAdmin()) {
+    if (['pending','confirmed'].includes(r.status)) {
+      const label = r.status === 'pending' ? 'Admin Override' : (isSelfPaidTrade(r) ? 'Admin รับทราบข้อตกลง' : 'Admin บันทึกเปลี่ยนเวร');
+      actions.push(`<button class="tiny-btn" data-trade-apply="${r.id}">${label}</button>`);
+    }
+    if (r.status !== 'completed') actions.push(`<button class="tiny-btn" data-trade-edit="${r.id}">แก้ไข</button>`);
+    actions.push(`<button class="tiny-btn danger" data-trade-delete="${r.id}">ลบ</button>`);
+  }
+  return actions.length ? actions.join(' ') : '<span class="muted">ไม่มีรายการที่ต้องกดตอนนี้</span>';
+}
 function renderTradeCards(rows, assignments) {
   return `<div class="mobile-cards trade-mobile-cards">${rows.map(r => {
     const from = assignments.find(a => a.id === r.from_assignment_id) || {};
     const to = assignments.find(a => a.id === r.to_assignment_id) || null;
-    const receiverActions = r.status === 'pending' && r.receiver_id === currentStaffId();
-    const adminActions = r.status === 'confirmed' && isAdmin();
-    return `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(r.trade_type || '-')}</h3>${badge(tradeStatusLabel(r.status, r), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</div><div><b>ผู้ขอ:</b> ${staffPill(r.requester_id)}<br><b>ผู้รับ/คู่แลก:</b> ${staffPill(r.receiver_id)}</div><div>${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</div><div><b>เงินโดยประมาณ:</b> ${Number(r.amount_from || 0).toLocaleString()} บ.${r.amount_diff ? `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff).toLocaleString()} บ.</span>` : ''}</div><div class="actions">${receiverActions ? `<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button><button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>` : adminActions ? `<button class="tiny-btn" data-trade-apply="${r.id}">${isSelfPaidTrade(r) ? 'Admin รับทราบข้อตกลง' : 'Admin บันทึกเปลี่ยนเวร'}</button>` : '<span class="muted">ไม่มีรายการที่ต้องกดตอนนี้</span>'}</div></div>`;
+    return `<div class="mobile-card"><div class="section-title"><h3>${escapeHtml(r.trade_type || '-')}</h3>${badge(tradeStatusLabel(r.status, r), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</div><div><b>ผู้ขอ:</b> ${staffPill(r.requester_id)}<br><b>ผู้รับ/คู่แลก:</b> ${staffPill(r.receiver_id)}</div><div>${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</div><div><b>เงินโดยประมาณ:</b> ${tradePaymentDisplay(r, from, to)}</div><div class="actions">${renderTradeActionButtons(r)}</div></div>`;
   }).join('')}</div>`;
 }
 function renderTradeRow(r, assignments) {
   const from = assignments.find(a => a.id === r.from_assignment_id) || {};
   const to = assignments.find(a => a.id === r.to_assignment_id) || null;
-  const receiverActions = r.status === 'pending' && r.receiver_id === currentStaffId();
-  const adminActions = r.status === 'confirmed' && isAdmin();
-  return `<tr><td>${staffPill(r.requester_id)}</td><td>${staffPill(r.receiver_id)}</td><td>${escapeHtml(r.trade_type)} • ${escapeHtml(niceRoleRateLabel(r.rate_mode))}<br><span class="muted">${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</span></td><td>${Number(r.amount_from || 0).toLocaleString()} บ.${r.amount_diff ? `<br><span class="muted">ส่วนต่าง ${Number(r.amount_diff).toLocaleString()} บ.</span>` : ''}</td><td>${badge(tradeStatusLabel(r.status, r), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</td><td>${receiverActions ? `<button class="tiny-btn" data-trade-status="${r.id}|confirmed">ยืนยัน</button><button class="tiny-btn danger" data-trade-status="${r.id}|rejected">ปฏิเสธ</button>` : adminActions ? `<button class="tiny-btn" data-trade-apply="${r.id}">${isSelfPaidTrade(r) ? 'Admin รับทราบข้อตกลง' : 'Admin บันทึกเปลี่ยนเวร'}</button>` : '-'}</td></tr>`;
+  return `<tr><td>${staffPill(r.requester_id)}</td><td>${staffPill(r.receiver_id)}</td><td>${escapeHtml(r.trade_type)} • ${escapeHtml(niceRoleRateLabel(r.rate_mode))}<br><span class="muted">${formatThaiDate(from.duty_date)} ${DUTY_LABEL[from.duty_code] || from.duty_code || ''}${to ? ` ↔ ${formatThaiDate(to.duty_date)} ${DUTY_LABEL[to.duty_code] || to.duty_code}` : ''}</span></td><td>${tradePaymentDisplay(r, from, to)}</td><td>${badge(tradeStatusLabel(r.status, r), r.status==='confirmed'?'green':r.status==='rejected'?'red':r.status==='completed'?'blue':'orange')}</td><td>${renderTradeActionButtons(r)}</td></tr>`;
 }
 function tradeStatusLabel(status, row=null) {
   if (row && isSelfPaidTrade(row)) return ({ pending:'รออีกฝ่ายยืนยัน', confirmed:'ยืนยันแล้ว รอ Admin รับทราบ', rejected:'ปฏิเสธ', completed:'รับทราบแล้ว / ไม่เปลี่ยนตาราง' }[status] || status || '-');
@@ -2928,6 +3008,8 @@ async function handleClick(e) {
   if (t.dataset.tradeDuty) { showTradeModal(t.dataset.tradeDuty); return; }
   if (t.dataset.tradeStatus) { const [id,status] = t.dataset.tradeStatus.split('|'); await updateTradeStatus(id,status); return; }
   if (t.dataset.tradeApply) { await applyTradeRequest(t.dataset.tradeApply); return; }
+  if (t.dataset.tradeEdit) { editTradeRequest(t.dataset.tradeEdit); return; }
+  if (t.dataset.tradeDelete) { await deleteTradeRequest(t.dataset.tradeDelete); return; }
   if (t.hasAttribute('data-export-schedule-excel')) { exportScheduleExcel(); return; }
   if (t.hasAttribute('data-print-page')) { window.print(); return; }
   if (t.hasAttribute('data-auto-positions')) { autoAssignPositions(); return; }
@@ -3710,25 +3792,38 @@ async function resetUserPassword(email) {
   showToast('ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว');
 }
 
-function showTradeModal(assignmentId) {
-  const slot = getAssignmentsForMonth(state.monthKey).find(a => a.id === assignmentId);
+function showTradeModal(assignmentId, existingRequest=null) {
+  const slot = getAssignmentsForMonth(state.monthKey).find(a => a.id === assignmentId) || state.rosterAssignments.find(a => a.id === assignmentId);
   if (!slot) return showToast('ไม่พบเวรนี้ กรุณารีเฟรชหน้า');
+  const editing = !!existingRequest?.id;
+  const possibleRequester = orderedStaff(state.staff.filter(s => isRosterEnabled(s)));
   const possibleReceiver = orderedStaff(state.staff.filter(s => isRosterEnabled(s) && s.id !== slot.staff_id));
-  const myAmount = dutyMetrics(slot, slot.staff_id).pay;
+  const requesterValue = editing ? existingRequest.requester_id : '';
+  const receiverValue = editing ? existingRequest.receiver_id : '';
+  const tradeTypeValue = editing ? (existingRequest.trade_type || 'ขายเวร') : 'ขายเวร';
+  const rateValue = editing ? (existingRequest.rate_mode || 'receiver') : 'receiver';
+  const customValue = editing && rateValue === 'custom' ? Number(existingRequest.amount_from || 0) : '';
+  const myAmount = calculateShiftPayment(slot, slot.staff_id, slot.staff_id, 'ขายเวร', 'receiver').amount;
+  const selectedToId = editing ? (existingRequest.to_assignment_id || '') : '';
   const otherDutyOptions = getAssignmentsForMonth(state.monthKey)
     .filter(a => a.staff_id && a.staff_id !== slot.staff_id)
-    .map(a => `<option data-owner="${a.staff_id}" value="${a.id}">${staffNick(a.staff_id)} — ${formatThaiDate(a.duty_date)} ${DUTY_LABEL[a.duty_code] || a.duty_code} (${dutyMetrics(a).pay.toLocaleString()} บ.)</option>`)
+    .map(a => `<option data-owner="${a.staff_id}" value="${a.id}" ${String(selectedToId)===String(a.id)?'selected':''}>${staffNick(a.staff_id)} — ${formatThaiDate(a.duty_date)} ${DUTY_LABEL[a.duty_code] || a.duty_code} (${dutyMetrics(a).pay.toLocaleString()} บ.)</option>`)
     .join('');
-  showModal(`<h2>ขอแลก/ขาย/ยกเวร</h2><p class="hint">${formatThaiDate(slot.duty_date)} ${DUTY_LABEL[slot.duty_code] || slot.duty_code} • เจ้าของเวรเดิม ${staffPill(slot.staff_id)} • มูลค่าเวรเดิมประมาณ ${myAmount.toLocaleString()} บาท</p>
+  const requesterControl = isAdmin()
+    ? `<label class="wide">ผู้ขอ <select name="requester_id" id="tradeRequesterSelect" required><option value="">เลือกผู้ขอ</option>${possibleRequester.map(s => `<option value="${s.id}" ${String(requesterValue)===String(s.id)?'selected':''}>${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select><span class="hint">Admin ต้องเลือกเองทุกครั้ง ระบบจะไม่ใช้ชื่อ Admin เป็นผู้ขออัตโนมัติ และผู้ขอต้องตรงกับเจ้าของเวรเดิม</span></label>`
+    : `<input type="hidden" name="requester_id" value="${slot.staff_id}">`;
+  showModal(`<h2>${editing ? 'แก้ไขคำขอแลก/ขาย/ยกเวร' : 'ขอแลก/ขาย/ยกเวร'}</h2><p class="hint">${formatThaiDate(slot.duty_date)} ${DUTY_LABEL[slot.duty_code] || slot.duty_code} • เจ้าของเวรเดิม ${staffPill(slot.staff_id)} • มูลค่าเวรเดิมประมาณ ${myAmount.toLocaleString()} บาท</p>
     <form id="dutyTradeForm" class="form-grid">
       <input type="hidden" name="from_assignment_id" value="${slot.id}">
-      <label>ประเภท <select name="trade_type" id="tradeTypeSelect"><option value="ขายเวร">ขายเวร / เบิก OT ผ่าน HR</option><option value="ยกเวร">ยกเวร / ให้เวรอีกคนไปเลย</option><option value="แลกเวร">แลกเวร</option></select></label>
-      <label>คนที่จะรับ/คู่แลก <select name="receiver_id" id="tradeReceiverSelect" required><option value="">เลือกคน</option>${possibleReceiver.map(s => `<option value="${s.id}">${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select></label>
+      ${editing ? `<input type="hidden" name="trade_request_id" value="${existingRequest.id}">` : ''}
+      ${requesterControl}
+      <label>ประเภท <select name="trade_type" id="tradeTypeSelect"><option value="ขายเวร" ${tradeTypeValue==='ขายเวร'?'selected':''}>ขายเวร / เบิก OT ผ่าน HR</option><option value="ยกเวร" ${tradeTypeValue==='ยกเวร'?'selected':''}>ยกเวร / ให้เวรอีกคนไปเลย</option><option value="แลกเวร" ${tradeTypeValue==='แลกเวร'?'selected':''}>แลกเวร</option></select></label>
+      <label>คนที่จะรับ/คู่แลก <select name="receiver_id" id="tradeReceiverSelect" required><option value="">เลือกคน</option>${possibleReceiver.map(s => `<option value="${s.id}" ${String(receiverValue)===String(s.id)?'selected':''}>${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join('')}</select></label>
       <label class="wide trade-swap-only" id="tradeSwapWrap" style="display:none">กรณีแลกเวรเท่านั้น: เลือกเวรของคู่แลก <select name="to_assignment_id" id="tradeSwapSelect"><option value="">เลือกเวรของคู่แลก</option>${otherDutyOptions}</select><span class="hint">ถ้าเป็นขายเวร/ยกเวร ไม่ต้องเลือกวันที่/เวรซ้ำ ระบบใช้เวรที่กดมาให้อัตโนมัติ</span></label>
-      <label id="tradeRateWrap">คิดเรท <select name="rate_mode"><option value="mt">เรท MT</option><option value="kerk">เรทเคิก</option><option value="custom">ตกลงกันเอง / จ่ายกันเอง</option></select><span class="hint">ถ้าเลือกตกลงกันเอง ระบบจะไม่เปลี่ยนตารางเวรหลักและไม่เปลี่ยนผู้มีสิทธิ์ OT</span></label>
-      <label id="tradeCustomWrap">จำนวนเงินตกลงเอง (ถ้ามี) <input name="custom_amount" type="number" min="0" step="1" placeholder="ไม่บังคับ"></label>
-      ${selfPaidTradeNotice()}<label class="wide">รายละเอียดข้อตกลง <textarea name="note" placeholder="เช่น เบิกผ่าน HR / ยกให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว"></textarea></label>
-      <button class="primary-btn wide" type="submit">ส่งคำขอให้อีกฝ่ายยืนยัน</button>
+      <label id="tradeRateWrap">คิดเรท <select name="rate_mode"><option value="receiver" ${rateValue==='receiver'?'selected':''}>คำนวณอัตโนมัติ Cross-Rate ตามผู้รับเวร</option><option value="mt" ${rateValue==='mt'?'selected':''}>บังคับเรท MT</option><option value="kerk" ${rateValue==='kerk'?'selected':''}>บังคับเรทเคิก</option><option value="custom" ${rateValue==='custom'?'selected':''}>ตกลงกันเอง / จ่ายกันเอง</option></select><span class="hint">อัตโนมัติ: เคิก→MT ปรับชั่วโมงตามเรท, MT→เคิก ใช้ชั่วโมงจริง และแตงใช้ MT เฉพาะ ช3A/ช3B/ช4</span></label>
+      <label id="tradeCustomWrap">จำนวนเงินตกลงเอง (ถ้ามี) <input name="custom_amount" type="number" min="0" step="1" value="${customValue}" placeholder="ไม่บังคับ"></label>
+      ${selfPaidTradeNotice()}<label class="wide">รายละเอียดข้อตกลง <textarea name="note" placeholder="เช่น เบิกผ่าน HR / ยกให้อีกคน / แลกเวรกับเพื่อน / จ่ายกันเองแล้ว">${escapeHtml(existingRequest?.note || '')}</textarea></label>
+      <button class="primary-btn wide" type="submit">${editing ? 'บันทึกการแก้ไข' : 'ส่งคำขอให้อีกฝ่ายยืนยัน'}</button>
     </form>`);
   updateTradeSwapVisibility();
 }
@@ -3748,43 +3843,70 @@ function updateTradeSwapVisibility() {
 }
 async function saveTradeRequest(form) {
   const fd = new FormData(form);
+  const requestId = fd.get('trade_request_id') || '';
   const fromId = fd.get('from_assignment_id');
+  const requesterId = isAdmin() ? fd.get('requester_id') : currentStaffId();
   const receiverId = fd.get('receiver_id');
-  const from = getAssignmentsForMonth(state.monthKey).find(a => a.id === fromId);
-  const to = fd.get('to_assignment_id') ? getAssignmentsForMonth(state.monthKey).find(a => a.id === fd.get('to_assignment_id')) : null;
+  const from = getAssignmentsForMonth(state.monthKey).find(a => a.id === fromId) || state.rosterAssignments.find(a => a.id === fromId);
+  const to = fd.get('to_assignment_id') ? (getAssignmentsForMonth(state.monthKey).find(a => a.id === fd.get('to_assignment_id')) || state.rosterAssignments.find(a => a.id === fd.get('to_assignment_id'))) : null;
   if (!from || !receiverId) return showToast('กรุณาเลือกผู้รับ/คู่แลกให้ครบ');
+  if (isAdmin() && !requesterId) return showToast('Admin ต้องเลือกผู้ขอจาก Dropdown ก่อนบันทึก');
+  if (!isAdmin() && String(from.staff_id) !== String(currentStaffId())) return showToast('ส่งคำขอได้เฉพาะเวรของตัวเอง');
+  if (String(requesterId) !== String(from.staff_id)) return showToast('ผู้ขอต้องตรงกับเจ้าของเวรเดิมของช่องนี้');
+  if (String(receiverId) === String(requesterId)) return showToast('ผู้รับเวรต้องไม่ใช่คนเดียวกับผู้ขอ');
   const tradeType = fd.get('trade_type') || 'ขายเวร';
   if (tradeType === 'แลกเวร' && !fd.get('to_assignment_id')) return showToast('ถ้าเลือกแลกเวร กรุณาเลือกเวรของคู่แลกด้วย');
-  const rateMode = fd.get('rate_mode') || 'mt';
+  if (tradeType === 'แลกเวร' && to && String(to.staff_id) !== String(receiverId)) return showToast('เวรคู่แลกต้องเป็นของคนรับ/คู่แลกที่เลือก');
+  const rateMode = fd.get('rate_mode') || 'receiver';
   const custom = Number(fd.get('custom_amount') || 0);
-  const amountFrom = tradeType === 'ยกเวร' ? 0 : (rateMode === 'custom' ? custom : tradeRateAmount(from, receiverId, rateMode));
-  const amountTo = to ? (rateMode === 'custom' ? 0 : dutyMetrics(to, from.staff_id).pay) : 0;
+  const paymentFrom = calculateShiftPayment(from, requesterId, receiverId, tradeType, rateMode);
+  const paymentTo = to ? calculateShiftPayment(to, receiverId, requesterId, tradeType, rateMode) : { amount:0 };
+  const amountFrom = tradeType === 'ยกเวร' ? 0 : (rateMode === 'custom' ? custom : paymentFrom.amount);
+  const amountTo = to ? (rateMode === 'custom' ? 0 : paymentTo.amount) : 0;
+  const existing = requestId ? state.tradeRequests.find(x => String(x.id) === String(requestId)) : null;
   const row = {
-    requester_id: currentStaffId(), receiver_id: receiverId, from_assignment_id: fromId, to_assignment_id: to?.id || null,
+    requester_id: requesterId, receiver_id: receiverId, from_assignment_id: fromId, to_assignment_id: to?.id || null,
     trade_type: tradeType, rate_mode: rateMode, amount_from: amountFrom, amount_to: amountTo, amount_diff: amountFrom - amountTo,
-    status: 'pending', note: fd.get('note') || null, created_by: currentStaffId(), updated_by: currentStaffId()
+    status: existing?.status || 'pending', note: fd.get('note') || null, updated_by: currentStaffId()
   };
-  const { error } = await sb.from('roster_trade_requests').insert(row);
+  let error;
+  if (requestId) {
+    ({ error } = await sb.from('roster_trade_requests').update(row).eq('id', requestId));
+  } else {
+    ({ error } = await sb.from('roster_trade_requests').insert({ ...row, created_by: currentStaffId() }));
+  }
   if (error) return showToast(friendlyDbError(error));
-  closeModal(); await loadAllData(); renderPage(); showToast('ส่งคำขอแล้ว รออีกฝ่ายกดยืนยัน');
+  closeModal(); await loadAllData(); renderPage(); showToast(requestId ? 'แก้ไขคำขอแล้ว' : 'ส่งคำขอแล้ว รออีกฝ่ายกดยืนยัน');
 }
 async function updateTradeStatus(id, status) {
   const { error } = await sb.from('roster_trade_requests').update({ status, updated_by: currentStaffId(), confirmed_at: status==='confirmed' ? new Date().toISOString() : null }).eq('id', id);
   if (error) return showToast(friendlyDbError(error));
   await loadAllData(); renderPage(); showToast(status === 'confirmed' ? 'ยืนยันคำขอแล้ว' : 'ปฏิเสธคำขอแล้ว');
 }
+function adminOverrideNote(note='') {
+  const marker = '[Admin Override]';
+  const raw = String(note || '').trim();
+  if (raw.includes(marker)) return raw;
+  const stamp = `${marker} ยืนยันแทนคู่กรณีโดย ${staffNick(currentStaffId())} เมื่อ ${new Date().toLocaleString('th-TH')}`;
+  return raw ? `${raw}\n${stamp}` : stamp;
+}
 async function applyTradeRequest(id) {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
   const r = state.tradeRequests.find(x => x.id === id);
-  if (!r || r.status !== 'confirmed') return showToast('คำขอนี้ยังไม่พร้อมให้บันทึก');
+  if (!r || !['pending','confirmed'].includes(r.status)) return showToast('คำขอนี้ยังไม่พร้อมให้บันทึก');
   const from = state.rosterAssignments.find(a => a.id === r.from_assignment_id);
   const to = r.to_assignment_id ? state.rosterAssignments.find(a => a.id === r.to_assignment_id) : null;
   if (!from) return showToast('ไม่พบเวรต้นทาง');
+  const override = r.status === 'pending';
+  if (override && !(await confirmDialog('ยืนยันรายการนี้แบบ Admin Override โดยไม่รอคู่กรณีตอบรับ?', 'Admin Override'))) return;
+
+  const completedPatch = { status: 'completed', updated_by: currentStaffId(), confirmed_at: r.confirmed_at || new Date().toISOString() };
+  if (override) completedPatch.note = adminOverrideNote(r.note);
 
   if (isSelfPaidTrade(r)) {
-    const { error } = await sb.from('roster_trade_requests').update({ status: 'completed', updated_by: currentStaffId() }).eq('id', id);
+    const { error } = await sb.from('roster_trade_requests').update(completedPatch).eq('id', id);
     if (error) return showToast(friendlyDbError(error));
-    await loadAllData(); renderPage(); showToast('รับทราบข้อตกลงแล้ว ตารางเวรและผู้มีสิทธิ์ OT ไม่เปลี่ยน');
+    await loadAllData(); renderPage(); showToast(override ? 'Admin Override แล้ว: รับทราบข้อตกลงโดยไม่เปลี่ยนตาราง' : 'รับทราบข้อตกลงแล้ว ตารางเวรและผู้มีสิทธิ์ OT ไม่เปลี่ยน');
     return;
   }
 
@@ -3794,9 +3916,25 @@ async function applyTradeRequest(id) {
   const results = await Promise.all(updates);
   const err = results.find(x => x.error)?.error;
   if (err) return showToast(friendlyDbError(err));
-  const { error } = await sb.from('roster_trade_requests').update({ status: 'completed', updated_by: currentStaffId() }).eq('id', id);
+  const { error } = await sb.from('roster_trade_requests').update(completedPatch).eq('id', id);
   if (error) return showToast(friendlyDbError(error));
-  await loadAllData(); renderPage(); showToast('บันทึกเปลี่ยนเวรแล้ว');
+  await loadAllData(); renderPage(); showToast(override ? 'Admin Override และบันทึกเปลี่ยนเวรแล้ว' : 'บันทึกเปลี่ยนเวรแล้ว');
+}
+function editTradeRequest(id) {
+  if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
+  const r = state.tradeRequests.find(x => String(x.id) === String(id));
+  if (!r) return showToast('ไม่พบคำขอนี้');
+  if (r.status === 'completed') return showToast('รายการที่เปลี่ยนตารางแล้วไม่ควรแก้ไขย้อนหลัง ให้ลบ/สร้างรายการใหม่แทน');
+  showTradeModal(r.from_assignment_id, r);
+}
+async function deleteTradeRequest(id) {
+  if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น');
+  const r = state.tradeRequests.find(x => String(x.id) === String(id));
+  if (!r) return showToast('ไม่พบคำขอนี้');
+  if (!(await confirmDialog(`ลบรายการ${r.trade_type || 'แลก/ขาย/ยกเวร'} ของ ${staffNick(r.requester_id)} → ${staffNick(r.receiver_id)}?`, 'ลบรายการ'))) return;
+  const { error } = await sb.from('roster_trade_requests').delete().eq('id', id);
+  if (error) return showToast(friendlyDbError(error));
+  await loadAllData(); renderPage(); showToast('ลบรายการแล้ว');
 }
 
 function staffOptions(selected='') { return orderedStaff(state.staff.filter(s => s.is_active)).map(s => `<option value="${s.id}" ${selected===s.id?'selected':''}>${escapeHtml(s.nickname || s.full_name)} (${escapeHtml(s.staff_type || '-')})</option>`).join(''); }
