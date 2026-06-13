@@ -6149,11 +6149,11 @@ function bindGlobalEvents() {
       return `<div class="monthly-matrix-wrap v153-position-matrix v158-position-matrix v159-position-matrix v160-position-matrix v162-position-matrix">
         <div class="matrix-legend"><span class="legend-box weekend"></span> WEEKEND/HOLIDAY = ไม่จัดตำแหน่ง <span class="legend-box outing"></span> ออกหน่วย <span class="legend-box leave"></span> แสดงเฉพาะประเภทลา / ไม่รับเวรยังจัดตำแหน่งได้ ${canEdit ? '<span class="hint">Admin เลือกตำแหน่งในช่องได้ แล้วกดบันทึกแผนทั้งเดือน</span>' : ''}</div>
         <div class="table-wrap month-position-matrix"><table><thead>
-          <tr><th class="sticky-col staff-col">เจ้าหน้าที่</th><th class="summary-col">สรุป</th>${dateHeads}</tr>
-          <tr class="missing-role-row"><th class="sticky-col staff-col missing-role-head">ยังขาด</th><th class="summary-col missing-role-head">-</th>${missingCells}</tr>
+          <tr><th class="sticky-col staff-col">เจ้าหน้าที่</th><th class="sticky-col summary-col">สรุป</th>${dateHeads}</tr>
+          <tr class="missing-role-row"><th class="sticky-col staff-col missing-role-head">ยังขาด</th><th class="sticky-col summary-col missing-role-head">-</th>${missingCells}</tr>
         </thead><tbody>${displayStaff.map(st => {
           const bg = staffColor(st); const fg = textColorFor(bg);
-          return `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${v162Esc(bg)};color:${v162Esc(fg)}"><div class="matrix-staff-name"><b>${v162Esc(st.nickname || st.full_name || '-')}</b><small>${v162Esc(st.staff_type || '')}</small></div></td><td class="summary-col summary-action-cell"><button class="tiny-btn staff-summary-trigger compact-staff-summary" data-month-position-stat="${v162Esc(st.id)}" type="button">ดูสรุป</button></td>${dates.map(date => v162MonthCell(st, date, byCell[`${st.id}|${date}`] || [], canEdit, ctx)).join('')}</tr>`;
+          return `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${v162Esc(bg)};color:${v162Esc(fg)}"><div class="matrix-staff-name"><b>${v162Esc(st.nickname || st.full_name || '-')}</b><small>${v162Esc(st.staff_type || '')}</small></div></td><td class="sticky-col summary-col summary-action-cell"><button class="tiny-btn staff-summary-trigger compact-staff-summary" data-month-position-stat="${v162Esc(st.id)}" type="button">ดูสรุป</button></td>${dates.map(date => v162MonthCell(st, date, byCell[`${st.id}|${date}`] || [], canEdit, ctx)).join('')}</tr>`;
         }).join('')}</tbody></table></div></div>`;
     } catch (err) {
       console.error('V162 renderMonthPositionMatrix failed', err);
@@ -9589,6 +9589,15 @@ function bindGlobalEvents() {
     const rows = rawPositionCatalog182();
     return includeInactive ? rows : rows.filter(p => p.is_active !== false && !p.deleted_at && p.code);
   }
+  function nextSortOrderForZone182(zone, isOuting=false){
+    const targetZone = isOuting || String(zone || '').trim() === 'ออกหน่วย' ? 'ออกหน่วย' : (String(zone || '').trim() || 'Blood Bank');
+    const sameZone = positionCatalog182({ includeInactive:true }).filter(p => {
+      const pZone = isOutingRow182(p) ? 'ออกหน่วย' : (String(p.zone || '').trim() || 'Blood Bank');
+      return pZone === targetZone;
+    });
+    const maxOrder = sameZone.reduce((max, p) => Math.max(max, normNum182(p.sort_order, 0)), 0);
+    return maxOrder + 1;
+  }
   function normalPositions182(){ return positionCatalog182().filter(p => !p.is_outing && p.zone !== 'ออกหน่วย'); }
   function outingPositions182(){ return positionCatalog182().filter(p => p.is_outing || p.zone === 'ออกหน่วย'); }
   function allActivePositions182(){ return positionCatalog182(); }
@@ -9685,40 +9694,48 @@ function bindGlobalEvents() {
     const editing = rows.find(r => String(r.id) === editId) || null;
     const isDbReady = !!state.positionMastersLoaded;
     const grouped = rows.reduce((acc, p) => { (acc[p.zone || 'อื่นๆ'] = acc[p.zone || 'อื่นๆ'] || []).push(p); return acc; }, {});
-    const optionZones = POSITION_ZONES_V182.map(z => `<option value="${esc182(z)}" ${(editing?.zone || 'Blood Bank')===z?'selected':''}>${esc182(z)}</option>`).join('');
+    const formOpen = !!editing || !!state.showPositionMasterForm;
+    const selectedZone = editing?.zone || 'Blood Bank';
+    const optionZones = POSITION_ZONES_V182.map(z => `<option value="${esc182(z)}" ${selectedZone===z?'selected':''}>${esc182(z)}</option>`).join('');
     const formTitle = editing ? `แก้ไขตำแหน่ง: ${esc182(editing.code)}` : 'เพิ่มตำแหน่งใหม่';
     const dbWarning = !isDbReady ? `<div class="notice error-notice compact"><b>ยังไม่ได้เชื่อมตาราง daily_position_masters</b><br>ตอนนี้ระบบแสดงตำแหน่งเดิมแบบ fallback ชั่วคราว ถ้าต้องการเพิ่ม/แก้ไข/ลบ ให้รันไฟล์ <code>supabase_v182_position_management.sql</code> ใน Supabase SQL Editor ก่อน</div>` : '';
-    const listHtml = Object.entries(grouped).map(([zone, list]) => `<div class="position-master-zone"><div class="section-title"><h3>${esc182(zone)}</h3><span class="badge blue">${list.length} ตำแหน่ง</span></div><div class="table-wrap compact-table"><table><thead><tr><th>ลำดับ</th><th>Code</th><th>ประเภท</th><th>เวลาพัก</th><th>ผู้ปฏิบัติหลัก</th><th>รายละเอียด</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${list.map(p => `<tr class="${p.is_active === false || p.deleted_at ? 'inactive-row' : ''}"><td>${esc182(p.sort_order)}</td><td><b>${esc182(p.code)}</b>${p.eligibility_code && p.eligibility_code !== p.code ? `<br><small>${esc182(p.eligibility_code)}</small>` : ''}</td><td>${p.is_outing ? badge('ออกหน่วย', 'red') : badge('ปกติ', 'blue')}</td><td>${esc182(p.break_time || '-')}</td><td>${esc182(p.main_rule || '-')}</td><td>${esc182(p.job_desc || '-')}</td><td>${p.is_active === false || p.deleted_at ? badge('ปิดใช้งาน', 'orange') : badge('ใช้งาน', 'green')}</td><td><div class="actions"><button class="tiny-btn" data-edit-position-master="${esc182(p.id)}">แก้ไข</button>${p.is_active === false || p.deleted_at ? `<button class="tiny-btn" data-restore-position-master="${esc182(p.id)}">เปิดใช้</button>` : `<button class="tiny-btn danger-soft-btn" data-delete-position-master="${esc182(p.id)}">ลบ</button>`}</div></td></tr>`).join('')}</tbody></table></div></div>`).join('');
+    const visibleNextOrder = editing ? normNum182(editing.sort_order, 1) : nextSortOrderForZone182(selectedZone, selectedZone === 'ออกหน่วย');
+    const listHtml = Object.entries(grouped).map(([zone, list]) => `<div class="position-master-zone"><div class="section-title"><h3>${esc182(zone)}</h3><span class="badge blue">${list.length} ตำแหน่ง</span></div><div class="table-wrap compact-table"><table><thead><tr><th>ลำดับ</th><th>Code</th><th>ประเภท</th><th>เวลาพัก</th><th>ผู้ปฏิบัติหลัก</th><th>รายละเอียด</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${list.map((p, idx) => `<tr class="${p.is_active === false || p.deleted_at ? 'inactive-row' : ''}"><td title="sort_order: ${esc182(p.sort_order)}">${idx + 1}</td><td><b>${esc182(p.code)}</b>${p.eligibility_code && p.eligibility_code !== p.code ? `<br><small>${esc182(p.eligibility_code)}</small>` : ''}</td><td>${p.is_outing ? badge('ออกหน่วย', 'red') : badge('ปกติ', 'blue')}</td><td>${esc182(p.break_time || '-')}</td><td>${esc182(p.main_rule || '-')}</td><td>${esc182(p.job_desc || '-')}</td><td>${p.is_active === false || p.deleted_at ? badge('ปิดใช้งาน', 'orange') : badge('ใช้งาน', 'green')}</td><td><div class="actions"><button class="tiny-btn" data-edit-position-master="${esc182(p.id)}">แก้ไข</button>${p.is_active === false || p.deleted_at ? `<button class="tiny-btn" data-restore-position-master="${esc182(p.id)}">เปิดใช้</button>` : `<button class="tiny-btn danger-soft-btn" data-delete-position-master="${esc182(p.id)}">ลบ</button>`}</div></td></tr>`).join('')}</tbody></table></div></div>`).join('');
     return `<div class="position-management-page">
-      <div class="card wide-card">
-        <div class="section-title"><div><h2>จัดการตำแหน่งรายวัน</h2><p class="hint">ตำแหน่งที่เปิดใช้งานจะถูกส่งต่อไปหน้า “สิทธิ์ตำแหน่งรายวัน”, “ตารางตำแหน่งรายวัน” และ “จัดตำแหน่งรายเดือน” อัตโนมัติ</p></div><button class="ghost-btn" data-refresh-position-masters>รีเฟรชจากฐานข้อมูล</button></div>
+      <div class="card wide-card position-management-header-card">
+        <div class="section-title"><div><h2>จัดการตำแหน่งรายวัน</h2><p class="hint">ตำแหน่งที่เปิดใช้งานจะถูกส่งต่อไปหน้า “สิทธิ์ตำแหน่งรายวัน”, “ตารางตำแหน่งรายวัน” และ “จัดตำแหน่งรายเดือน” อัตโนมัติ</p></div><div class="position-management-actions"><button class="primary-btn" data-add-position-master>เพิ่มตำแหน่งใหม่</button><button class="ghost-btn" data-refresh-position-masters>รีเฟรชจากฐานข้อมูล</button></div></div>
         ${dbWarning}
       </div>
-      <div class="grid grid-2">
-        <div class="card position-master-form-card">
-          <div class="section-title"><h3>${formTitle}</h3>${editing ? '<button class="ghost-btn" data-cancel-position-master-edit>ยกเลิกแก้ไข</button>' : ''}</div>
-          <form id="positionMasterForm" class="form-grid compact-form">
-            <input type="hidden" name="id" value="${esc182(editing?.id || '')}">
-            <label>รหัสตำแหน่ง / Code <input name="code" value="${esc182(editing?.code || '')}" placeholder="เช่น BB-Report" required></label>
-            <label>หมวดหมู่ <select name="zone">${optionZones}</select></label>
-            <label>ประเภท <select name="is_outing"><option value="false" ${editing?.is_outing ? '' : 'selected'}>ตำแหน่งปกติ</option><option value="true" ${editing?.is_outing ? 'selected' : ''}>ตำแหน่งออกหน่วย</option></select></label>
-            <label>ลำดับแสดงผล <input name="sort_order" type="number" value="${esc182(editing?.sort_order ?? (rows.length + 1))}" min="1" step="1"></label>
-            <label>เวลาพัก <input name="break_time" value="${esc182(editing?.break_time || '')}" placeholder="เช่น 11:00 / ออกหน่วย"></label>
-            <label>Eligibility Code <input name="eligibility_code" value="${esc182(editing?.eligibility_code || '')}" placeholder="เว้นว่างได้ / ออกหน่วยจะใช้ OUTING:Code"></label>
-            <label class="wide">ผู้ปฏิบัติหลัก <input name="main_rule" value="${esc182(editing?.main_rule || '')}" placeholder="เช่น MT เท่านั้น / แตง / แก๊ส / เฟื่อง"></label>
-            <label class="wide">รายละเอียดหน้าที่ <textarea name="job_desc" rows="4" placeholder="อธิบายงานของตำแหน่งนี้">${esc182(editing?.job_desc || '')}</textarea></label>
-            <label>สถานะ <select name="is_active"><option value="true" ${editing?.is_active === false ? '' : 'selected'}>ใช้งาน</option><option value="false" ${editing?.is_active === false ? 'selected' : ''}>ปิดใช้งาน</option></select></label>
-            <button class="primary-btn wide" type="submit" ${!isDbReady ? 'disabled' : ''}>${editing ? 'บันทึกการแก้ไข' : 'เพิ่มตำแหน่ง'}</button>
-          </form>
-          <p class="hint">แนะนำ: การ “ลบ” จะเป็นการปิดใช้งาน เพื่อไม่ทำลายประวัติตำแหน่งรายเดือน/รายวันที่เคยบันทึกไว้</p>
-        </div>
-        <div class="card position-master-note-card">
-          <h3>โครงสร้างข้อมูลที่ใช้</h3>
-          <div class="profile-info-list compact-info"><div><span>ตารางหลัก</span><b>daily_position_masters</b></div><div><span>ตัวเชื่อมสิทธิ์</span><b>daily_position_eligibility.position_code</b></div><div><span>ตัวใช้งานจริง</span><b>daily_positions.position_code</b></div></div>
-          <p class="hint">สำหรับตำแหน่งออกหน่วย ระบบจะใช้ Eligibility Code เช่น <code>OUTING:DR-Registration</code> เพื่อแยกสิทธิ์ออกจากตำแหน่งห้องบริจาคปกติ แม้ Code หลักจะชื่อเดียวกัน</p>
-        </div>
-      </div>
-      <div class="card wide-card"><div class="section-title"><h3>รายการตำแหน่งทั้งหมด</h3><span class="badge black">${rows.length} รายการ</span></div>${rows.length ? listHtml : empty('ยังไม่มีรายการตำแหน่ง')}</div>
+
+      <details class="card position-collapse-card position-master-form-card" ${formOpen ? 'open' : ''}>
+        <summary><span><b>${formTitle}</b><small>${editing ? 'แก้ข้อมูลตำแหน่งเดิม โดยคงลำดับเดิมไว้' : 'ฟอร์มจะเปิดเมื่อกดเพิ่มตำแหน่งใหม่'}</small></span>${editing ? '<button class="ghost-btn" data-cancel-position-master-edit type="button">ยกเลิกแก้ไข</button>' : ''}</summary>
+        <form id="positionMasterForm" class="form-grid compact-form">
+          <input type="hidden" name="id" value="${esc182(editing?.id || '')}">
+          <label>รหัสตำแหน่ง / Code <input name="code" value="${esc182(editing?.code || '')}" placeholder="เช่น BB-Report" required></label>
+          <label>หมวดหมู่ <select name="zone">${optionZones}</select></label>
+          <label>ประเภท <select name="is_outing"><option value="false" ${editing?.is_outing ? '' : 'selected'}>ตำแหน่งปกติ</option><option value="true" ${editing?.is_outing ? 'selected' : ''}>ตำแหน่งออกหน่วย</option></select></label>
+          <label>เวลาพัก <input name="break_time" value="${esc182(editing?.break_time || '')}" placeholder="เช่น 11:00 / ออกหน่วย"></label>
+          <label>Eligibility Code <input name="eligibility_code" value="${esc182(editing?.eligibility_code || '')}" placeholder="เว้นว่างได้ / ออกหน่วยจะใช้ OUTING:Code"></label>
+          <label>สถานะ <select name="is_active"><option value="true" ${editing?.is_active === false ? '' : 'selected'}>ใช้งาน</option><option value="false" ${editing?.is_active === false ? 'selected' : ''}>ปิดใช้งาน</option></select></label>
+          <label class="wide">ผู้ปฏิบัติหลัก <input name="main_rule" value="${esc182(editing?.main_rule || '')}" placeholder="เช่น MT เท่านั้น / แตง / แก๊ส / เฟื่อง"></label>
+          <label class="wide">รายละเอียดหน้าที่ <textarea name="job_desc" rows="4" placeholder="อธิบายงานของตำแหน่งนี้">${esc182(editing?.job_desc || '')}</textarea></label>
+          <details class="wide position-advanced-options">
+            <summary>ตัวเลือกขั้นสูง: ลำดับจริงที่ใช้จัดเรียง</summary>
+            <label>ลำดับจริงในฐานข้อมูล <input name="sort_order" type="number" value="${esc182(visibleNextOrder)}" min="1" step="1" ${editing ? '' : 'readonly'}></label>
+            <p class="hint">การเพิ่มตำแหน่งใหม่ ระบบจะคำนวณลำดับในหมวดเดียวกันให้อัตโนมัติ ส่วนหน้าแสดงรายการจะแสดงเป็น 1, 2, 3 เพื่ออ่านง่าย</p>
+          </details>
+          <button class="primary-btn wide" type="submit" ${!isDbReady ? 'disabled' : ''}>${editing ? 'บันทึกการแก้ไข' : 'เพิ่มตำแหน่ง'}</button>
+        </form>
+        <p class="hint">แนะนำ: การ “ลบ” จะเป็นการปิดใช้งาน เพื่อไม่ทำลายประวัติตำแหน่งรายเดือน/รายวันที่เคยบันทึกไว้</p>
+      </details>
+
+      <details class="card position-collapse-card position-master-note-card">
+        <summary><span><b>โครงสร้างข้อมูลที่ใช้</b><small>ข้อมูลเสริมสำหรับตรวจสอบฐานข้อมูล</small></span></summary>
+        <div class="profile-info-list compact-info"><div><span>ตารางหลัก</span><b>daily_position_masters</b></div><div><span>ตัวเชื่อมสิทธิ์</span><b>daily_position_eligibility.position_code</b></div><div><span>ตัวใช้งานจริง</span><b>daily_positions.position_code</b></div></div>
+        <p class="hint">สำหรับตำแหน่งออกหน่วย ระบบจะใช้ Eligibility Code เช่น <code>OUTING:DR-Registration</code> เพื่อแยกสิทธิ์ออกจากตำแหน่งห้องบริจาคปกติ แม้ Code หลักจะชื่อเดียวกัน</p>
+      </details>
+
+      <div class="card wide-card position-master-list-card"><div class="section-title"><h3>รายการตำแหน่งทั้งหมด</h3><span class="badge black">${rows.length} รายการ</span></div>${rows.length ? listHtml : empty('ยังไม่มีรายการตำแหน่ง')}</div>
     </div>`;
   }
 
@@ -9727,19 +9744,21 @@ function bindGlobalEvents() {
     if (!state.positionMastersLoaded) return safeToast182('ยังไม่ได้รัน SQL สร้างตาราง daily_position_masters', { tone:'error' });
     const fd = new FormData(form);
     const id = String(fd.get('id') || '').trim();
+    const existing = id ? positionCatalog182({ includeInactive:true }).find(p => String(p.id) === id) : null;
     const code = String(fd.get('code') || '').trim();
     const zone = String(fd.get('zone') || '').trim() || 'Blood Bank';
     const isOuting = String(fd.get('is_outing')) === 'true' || zone === 'ออกหน่วย';
+    const finalZone = isOuting ? 'ออกหน่วย' : zone;
     const isActive = String(fd.get('is_active')) !== 'false';
     if (!code) return safeToast182('กรุณากรอกรหัสตำแหน่ง');
     const payload = {
       code,
-      zone: isOuting ? 'ออกหน่วย' : zone,
+      zone: finalZone,
       is_outing: isOuting,
       break_time: String(fd.get('break_time') || '').trim() || '-',
       main_rule: String(fd.get('main_rule') || '').trim() || null,
       job_desc: String(fd.get('job_desc') || '').trim() || null,
-      sort_order: normNum182(fd.get('sort_order'), 999),
+      sort_order: id ? normNum182(fd.get('sort_order'), normNum182(existing?.sort_order, 999)) : nextSortOrderForZone182(finalZone, isOuting),
       is_active: isActive,
       deleted_at: isActive ? null : new Date().toISOString(),
       updated_by: currentStaffId()
@@ -9750,6 +9769,7 @@ function bindGlobalEvents() {
     const res = id ? await sb.from('daily_position_masters').update(payload).eq('id', id) : await sb.from('daily_position_masters').insert(payload);
     if (res.error) return safeToast182(friendly182(res.error), { tone:'error' });
     state.editingPositionMasterId = null;
+    state.showPositionMasterForm = false;
     await refreshPositionMasters182();
     renderPage();
     safeToast182(id ? 'บันทึกการแก้ไขตำแหน่งแล้ว' : 'เพิ่มตำแหน่งใหม่แล้ว');
@@ -9858,7 +9878,7 @@ function bindGlobalEvents() {
     const leaveIndex = activeLeaveIndexForDates182(dates);
     const dateHeads = dates.map(date => { const d = parseDate(date); const cls = isHolidayDate(date) ? 'holiday-head' : isWeekend(date) ? 'weekend-head' : hasOuting(date) ? 'outing-head' : ''; return `<th class="date-head ${cls}"><b>${d.getDate()}</b><br><span>${d.toLocaleDateString('th-TH', { weekday:'short' })}</span></th>`; }).join('');
     const missingCells = dates.map(date => missingCell182(date, assignedByDate)).join('');
-    return `<div class="monthly-matrix-wrap v182-position-matrix"><div class="matrix-legend"><span class="legend-box weekend"></span> WEEKEND/HOLIDAY = ไม่จัดตำแหน่ง <span class="legend-box outing"></span> ออกหน่วย <span class="legend-box leave"></span> ตำแหน่งมาจากหน้า “จัดการตำแหน่ง” ${canEdit ? '<span class="hint">Admin เลือกตำแหน่งในช่องได้ แล้วกดบันทึกแผนทั้งเดือน</span>' : ''}</div><div class="table-wrap month-position-matrix"><table><thead><tr><th class="sticky-col staff-col">เจ้าหน้าที่</th><th class="summary-col">สรุป</th>${dateHeads}</tr><tr class="missing-role-row"><th class="sticky-col staff-col missing-role-head">ยังขาด</th><th class="summary-col missing-role-head">-</th>${missingCells}</tr></thead><tbody>${displayStaff.map(st => { const bg = staffColor(st); const fg = textColorFor(bg); return `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${esc182(bg)};color:${esc182(fg)}"><div class="matrix-staff-name"><b>${esc182(st.nickname || st.full_name || '-')}</b><small>${esc182(st.staff_type || '')}</small></div></td><td class="summary-col summary-action-cell"><button class="tiny-btn staff-summary-trigger compact-staff-summary" data-month-position-stat="${esc182(st.id)}" type="button">ดูสรุป</button></td>${dates.map(date => renderMonthCell182(st, date, byCell[`${st.id}|${date}`] || [], canEdit, leaveIndex)).join('')}</tr>`; }).join('')}</tbody></table></div></div>`;
+    return `<div class="monthly-matrix-wrap v182-position-matrix"><div class="matrix-legend"><span class="legend-box weekend"></span> WEEKEND/HOLIDAY = ไม่จัดตำแหน่ง <span class="legend-box outing"></span> ออกหน่วย <span class="legend-box leave"></span> ตำแหน่งมาจากหน้า “จัดการตำแหน่ง” ${canEdit ? '<span class="hint">Admin เลือกตำแหน่งในช่องได้ แล้วกดบันทึกแผนทั้งเดือน</span>' : ''}</div><div class="table-wrap month-position-matrix"><table><thead><tr><th class="sticky-col staff-col">เจ้าหน้าที่</th><th class="sticky-col summary-col">สรุป</th>${dateHeads}</tr><tr class="missing-role-row"><th class="sticky-col staff-col missing-role-head">ยังขาด</th><th class="sticky-col summary-col missing-role-head">-</th>${missingCells}</tr></thead><tbody>${displayStaff.map(st => { const bg = staffColor(st); const fg = textColorFor(bg); return `<tr><td class="sticky-col staff-col staff-color-cell" style="background:${esc182(bg)};color:${esc182(fg)}"><div class="matrix-staff-name"><b>${esc182(st.nickname || st.full_name || '-')}</b><small>${esc182(st.staff_type || '')}</small></div></td><td class="sticky-col summary-col summary-action-cell"><button class="tiny-btn staff-summary-trigger compact-staff-summary" data-month-position-stat="${esc182(st.id)}" type="button">ดูสรุป</button></td>${dates.map(date => renderMonthCell182(st, date, byCell[`${st.id}|${date}`] || [], canEdit, leaveIndex)).join('')}</tr>`; }).join('')}</tbody></table></div></div>`;
   };
 
   window.buildMonthlyPositionDraft = buildMonthlyPositionDraft = function buildMonthlyPositionDraftV182(key){
@@ -9948,10 +9968,12 @@ function bindGlobalEvents() {
     }
     const refresh = e.target?.closest?.('[data-refresh-position-masters]');
     if (refresh) { e.preventDefault(); e.stopPropagation(); await refreshPositionMasters182(); renderPage(); safeToast182('รีเฟรชรายการตำแหน่งแล้ว'); return; }
+    const add = e.target?.closest?.('[data-add-position-master]');
+    if (add) { e.preventDefault(); e.stopPropagation(); state.editingPositionMasterId = null; state.showPositionMasterForm = true; renderPage(); return; }
     const edit = e.target?.closest?.('[data-edit-position-master]');
-    if (edit) { e.preventDefault(); e.stopPropagation(); state.editingPositionMasterId = edit.getAttribute('data-edit-position-master'); renderPage(); return; }
+    if (edit) { e.preventDefault(); e.stopPropagation(); state.editingPositionMasterId = edit.getAttribute('data-edit-position-master'); state.showPositionMasterForm = true; renderPage(); return; }
     const cancel = e.target?.closest?.('[data-cancel-position-master-edit]');
-    if (cancel) { e.preventDefault(); e.stopPropagation(); state.editingPositionMasterId = null; renderPage(); return; }
+    if (cancel) { e.preventDefault(); e.stopPropagation(); state.editingPositionMasterId = null; state.showPositionMasterForm = false; renderPage(); return; }
     const del = e.target?.closest?.('[data-delete-position-master]');
     if (del) { e.preventDefault(); e.stopPropagation(); await softDeletePositionMaster182(del.getAttribute('data-delete-position-master')); return; }
     const restore = e.target?.closest?.('[data-restore-position-master]');

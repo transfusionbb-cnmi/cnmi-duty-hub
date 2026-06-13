@@ -2317,9 +2317,9 @@ thead .v179-sticky-first-col {
 .position-management-page .compact-table table td, .position-management-page .compact-table table th { vertical-align: top; }
 .position-management-page .inactive-row { opacity: .62; }
 .position-management-page .inactive-row td { background: #f8fafc; }
-.position-master-form-card textarea { resize: vertical; min-height: 96px; }
-.position-master-note-card code, .position-management-page code, .v182-eligibility-page code { background: #eef6ff; border: 1px solid #d7eaff; border-radius: 6px; padding: 1px 6px; }
-.position-master-note-card .profile-info-list { margin-top: 10px; }
+.position-management-page .position-master-form-card textarea { resize: vertical; min-height: 96px; }
+.position-management-page .position-master-note-card code, .position-management-page code, .v182-eligibility-page code { background: #eef6ff; border: 1px solid #d7eaff; border-radius: 6px; padding: 1px 6px; }
+.position-management-page .position-master-note-card .profile-info-list { margin-top: 10px; }
 .v182-eligibility-page .position-check small { display: block; }
 .v182-position-matrix .month-position-select { min-width: 120px; }
 
@@ -2578,5 +2578,283 @@ thead .v179-sticky-first-col {
   .v182-position-matrix .month-position-select {
     height: 30px;
     font-size: 10px;
+  }
+}
+
+
+/* V185 Position monthly matrix layout/order fix
+   Intentional scoped overrides only for monthly position matrix and position management page. */
+.v182-position-matrix {
+  --month-staff-col-width: 112px;
+  --month-summary-col-width: 72px;
+  --month-day-col-width: 108px;
+  --month-header-height: 38px;
+  --month-missing-height: 34px;
+  --month-row-height: 36px;
+}
+.v182-position-matrix .month-position-matrix {
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.v182-position-matrix .month-position-matrix table {
+  table-layout: fixed !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  width: calc(var(--month-staff-col-width) + var(--month-summary-col-width) + (31 * var(--month-day-col-width))) !important;
+  min-width: calc(var(--month-staff-col-width) + var(--month-summary-col-width) + (31 * var(--month-day-col-width))) !important;
+}
+.v182-position-matrix .month-position-matrix th,
+.v182-position-matrix .month-position-matrix td {
+  box-sizing: border-box;
+  height: var(--month-row-height);
+  min-height: var(--month-row-height);
+  max-height: var(--month-row-height);
+  padding: 4px 6px !important;
+  overflow: hidden !important;
+  vertical-align: middle !important;
+  white-space: nowrap;
+}
+.v182-position-matrix .month-position-matrix thead tr:first-child th {
+  height: var(--month-header-height);
+  min-height: var(--month-header-height);
+  max-height: var(--month-header-height);
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 40;
+  background: #f8fafc !important;
+}
+.v182-position-matrix .month-position-matrix thead .missing-role-row th {
+  height: var(--month-missing-height);
+  min-height: var(--month-missing-height);
+  max-height: var(--month-missing-height);
+  position: sticky !important;
+  top: var(--month-header-height) !important;
+  z-index: 39;
+  background: #fff !important;
+}
+.v182-position-matrix .month-position-matrix .staff-col {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 50 !important;
+  width: var(--month-staff-col-width) !important;
+  min-width: var(--month-staff-col-width) !important;
+  max-width: var(--month-staff-col-width) !important;
+  background-clip: padding-box;
+}
+.v182-position-matrix .month-position-matrix .summary-col {
+  position: sticky !important;
+  left: var(--month-staff-col-width) !important;
+  z-index: 49 !important;
+  width: var(--month-summary-col-width) !important;
+  min-width: var(--month-summary-col-width) !important;
+  max-width: var(--month-summary-col-width) !important;
+  background: #fff !important;
+  background-clip: padding-box;
+}
+.v182-position-matrix .month-position-matrix thead .staff-col {
+  z-index: 70 !important;
+  background: #f8fafc !important;
+}
+.v182-position-matrix .month-position-matrix thead .summary-col {
+  z-index: 69 !important;
+  background: #f8fafc !important;
+}
+.v182-position-matrix .month-position-matrix thead .missing-role-row .staff-col,
+.v182-position-matrix .month-position-matrix thead .missing-role-row .summary-col {
+  background: #ffffff !important;
+}
+.v182-position-matrix .month-position-matrix .date-head,
+.v182-position-matrix .month-position-matrix .missing-role-cell,
+.v182-position-matrix .month-position-matrix .matrix-cell {
+  width: var(--month-day-col-width) !important;
+  min-width: var(--month-day-col-width) !important;
+  max-width: var(--month-day-col-width) !important;
+}
+.v182-position-matrix .date-head,
+.v182-position-matrix .date-head b,
+.v182-position-matrix .date-head span,
+.v182-position-matrix .matrix-cell,
+.v182-position-matrix .matrix-cell span,
+.v182-position-matrix .missing-role-cell,
+.v182-position-matrix .missing-role-cell span,
+.v182-position-matrix .matrix-staff-name b,
+.v182-position-matrix .matrix-staff-name small {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.v182-position-matrix .matrix-cell {
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 900;
+}
+.v182-position-matrix .matrix-cell > span {
+  display: block;
+  max-width: 100%;
+}
+.v182-position-matrix .matrix-cell br,
+.v182-position-matrix .cell-note {
+  display: none !important;
+}
+.v182-position-matrix .staff-color-cell {
+  padding: 4px 7px !important;
+}
+.v182-position-matrix .matrix-staff-name {
+  display: block;
+  min-height: 0;
+  max-height: calc(var(--month-row-height) - 8px);
+}
+.v182-position-matrix .matrix-staff-name b {
+  display: block;
+  font-size: 12px;
+  line-height: 1.05;
+}
+.v182-position-matrix .matrix-staff-name small {
+  display: block;
+  font-size: 9px;
+  line-height: 1.05;
+  margin-top: 1px;
+}
+.v182-position-matrix .summary-action-cell {
+  padding: 4px 5px !important;
+  text-align: center !important;
+}
+.v182-position-matrix .summary-action-cell .staff-summary-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 52px;
+  height: 24px;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid #b9dcff !important;
+  background: #e8f4ff !important;
+  color: #1769aa !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+}
+.v182-position-matrix .month-position-select {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 3px 6px !important;
+  border-radius: 9px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+.v182-position-matrix .missing-role-cell {
+  padding: 3px 4px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+.v182-position-matrix .missing-role-cell span {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 5px;
+  border-radius: 999px;
+}
+.v182-position-matrix .missing-role-cell span + span {
+  display: none !important;
+}
+.v182-position-matrix .missing-role-cell.complete {
+  background: #eefdf3 !important;
+  color: #166534 !important;
+}
+.v182-position-matrix .missing-role-cell.has-missing {
+  background: #fff7ed !important;
+  color: #9a3412 !important;
+}
+.v182-position-matrix .missing-role-cell.no-position-day {
+  background: #eef2f7 !important;
+  color: #475569 !important;
+}
+
+.position-management-page {
+  display: grid;
+  gap: 14px;
+}
+.position-management-page .position-management-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.position-management-page .position-collapse-card {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+.position-management-page .position-collapse-card > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+.position-management-page .position-collapse-card > summary::-webkit-details-marker {
+  display: none;
+}
+.position-management-page .position-collapse-card > summary::after {
+  content: "⌄";
+  flex: 0 0 auto;
+  font-weight: 900;
+  color: #64748b;
+}
+.position-management-page .position-collapse-card[open] > summary::after {
+  transform: rotate(180deg);
+}
+.position-management-page .position-collapse-card > summary span {
+  display: grid;
+  gap: 3px;
+}
+.position-management-page .position-collapse-card > summary small {
+  color: #64748b;
+  font-weight: 600;
+}
+.position-management-page .position-master-form-card form,
+.position-management-page .position-master-form-card > p,
+.position-management-page .position-master-note-card .profile-info-list,
+.position-management-page .position-master-note-card > p {
+  margin: 0 18px 18px;
+}
+.position-management-page .position-advanced-options {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+.position-management-page .position-advanced-options > summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #334155;
+}
+.position-management-page .position-master-list-card .position-master-zone + .position-master-zone {
+  margin-top: 18px;
+}
+.position-management-page .compact-table table {
+  table-layout: auto;
+}
+.position-management-page .compact-table th,
+.position-management-page .compact-table td {
+  white-space: normal;
+}
+@media (max-width: 720px) {
+  .v182-position-matrix {
+    --month-staff-col-width: 96px;
+    --month-summary-col-width: 62px;
+    --month-day-col-width: 96px;
+    --month-header-height: 36px;
+    --month-row-height: 34px;
+  }
+  .position-management-page .position-management-actions,
+  .position-management-page .position-collapse-card > summary {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
