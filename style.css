@@ -1807,3 +1807,68 @@ body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
 @media (max-width: 520px) {
   .v165-profile-info > div { grid-template-columns: 1fr; gap: 5px; }
 }
+
+
+/* V166 Login input height + show/hide password */
+input, select {
+  min-height: 46px;
+  line-height: 1.5;
+}
+textarea {
+  line-height: 1.5;
+}
+.auth-card label {
+  gap: 8px;
+}
+.auth-card input {
+  min-height: 52px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  line-height: 1.5;
+}
+.password-field {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.password-field input {
+  width: 100%;
+  padding-right: 50px !important;
+  box-sizing: border-box;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: #eef6ff;
+  color: #1e3a8a;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: none;
+}
+.password-toggle:hover {
+  filter: brightness(.97);
+}
+.admin-user-head .user-password-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.admin-user-head .danger-soft-btn {
+  border-color: #fecaca;
+  background: #fff5f5;
+  color: #991b1b;
+}
+@media (max-width: 640px) {
+  .admin-user-head { align-items: stretch; }
+  .admin-user-head .user-password-actions { justify-content: flex-start; }
+}

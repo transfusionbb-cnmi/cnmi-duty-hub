@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=165" />
+  <link rel="stylesheet" href="style.css?v=166" />
 </head>
 <body>
   <div id="setupWarning" class="setup-warning hidden">
@@ -31,7 +31,10 @@
           <input id="loginEmail" type="text" placeholder="Username หรือ name@mahidol.ac.th" autocomplete="username" required>
         </label>
         <label>รหัสผ่าน
-          <input id="loginPassword" type="password" placeholder="เช่น CNMI@รหัสพนักงาน" autocomplete="current-password" required>
+          <span class="password-field">
+            <input id="loginPassword" type="password" placeholder="เช่น CNMI@รหัสพนักงาน" autocomplete="current-password" required>
+            <button class="password-toggle" type="button" data-toggle-password="loginPassword" aria-label="แสดงรหัสผ่าน" aria-pressed="false">👁</button>
+          </span>
         </label>
         <button class="primary-btn full-btn" type="submit">เข้าสู่ระบบ</button>
         <p class="hint login-helper-text">สำหรับการล็อกอินครั้งแรก หรือ ลืมรหัสผ่าน กรุณาใช้อีเมลมหิดล ส่วนรหัสผ่านคือ CNMI@ ตามด้วยรหัสพนักงาน</p>
@@ -50,7 +53,10 @@
           <input id="recoveryLoginName" type="text" placeholder="เช่น user หรือ gift123 หรือ 012345" autocomplete="username" required>
         </label>
         <label>รหัสผ่านใหม่
-          <input id="newPassword" type="password" placeholder="รหัสผ่านใหม่" autocomplete="new-password" required>
+          <span class="password-field">
+            <input id="newPassword" type="password" placeholder="รหัสผ่านใหม่" autocomplete="new-password" required>
+            <button class="password-toggle" type="button" data-toggle-password="newPassword" aria-label="แสดงรหัสผ่าน" aria-pressed="false">👁</button>
+          </span>
         </label>
         <button class="primary-btn full-btn" type="submit">บันทึกชื่อผู้ใช้และรหัสผ่านใหม่</button>
         <p class="hint">ชื่อผู้ใช้ใช้ตัวอักษรอังกฤษหรือตัวเลขได้ เช่น user, gift123, 012345</p>
@@ -103,7 +109,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js?v=149"></script>
   <script src="patch-v136-preauth.js?v=149"></script>
-  <script src="app.js?v=165"></script>
+  <script src="app.js?v=166"></script>
   <script src="patch-v136-auth-layout-tabs-final.js?v=149"></script>
   <script src="patch-v137-critical-regression-restore.js?v=149"></script>
   <script src="patch-v138-password-complete-redirect.js?v=149"></script>

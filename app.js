@@ -2757,7 +2757,10 @@ function renderUsersPage() {
   const userForm = (s) => `<div class="admin-user-card admin-user-single-card" data-staff-row="${s.id}">
     <div class="admin-user-head">
       <div class="admin-user-title">${staffPill(s)}<span>${escapeHtml(s.full_name || '')}</span></div>
-      <button class="tiny-btn" data-reset-user-email="${escapeHtml(s.email || '')}">ส่ง reset</button>
+      <div class="user-password-actions">
+        <button class="tiny-btn" data-reset-user-email="${escapeHtml(s.email || '')}" type="button">ส่งลิงก์ reset</button>
+        <button class="tiny-btn danger-soft-btn" data-reset-default-password-staff="${escapeHtml(s.id || '')}" type="button">รีเซ็ตรหัสผ่านเป็นค่าเริ่มต้น</button>
+      </div>
     </div>
     <div class="admin-user-form">
       <label>สี <input class="color-input" type="color" data-field="staff_color" value="${escapeHtml(staffColor(s))}"></label>
@@ -6530,12 +6533,12 @@ function bindGlobalEvents() {
   window.renderOtPage = renderOtPage = function renderOtPageV163(){
     const today = todayStr();
     const proxyOptions = selfPaidDutyProxyOptions(today);
-    const myDutyToday = rosterDutiesFor(currentStaffId(), today).length > 0;
-    const myLoggedToday = alreadyAttendance(currentStaffId(), today);
+    const myDutyToday = rosterDutiesForV165(currentStaffId(), today).length > 0;
+    const myLoggedToday = alreadyAttendanceV165(currentStaffId(), today);
     const mine = (state.otRequests || []).filter(x => String(x.staff_id) === String(currentStaffId()));
     const rows = isAdmin() ? (state.otRequests || []) : mine;
     const proxyBox = proxyOptions.length ? `<div class="notice soft-notice compact"><b>วันนี้มีข้อตกลงจ่ายกันเองที่คุณเป็นคนมาทำแทน</b><br>${proxyOptions.map(x => `ลงชื่อแทนเวรของ ${staffPill(x.assignment.staff_id)} • ${esc(DUTY_LABEL[x.assignment.duty_code] || x.assignment.duty_code)}`).join('<br>')}</div>` : '';
-    const staffMode = isAdmin() ? `<div class="form-grid two-cols admin-checkin-fields"><label>เลือกชื่อเจ้าหน้าที่ <select name="staff_id" required>${activeStaffOptions(currentStaffId())}</select></label><label>เลือกประเภทเวร <select name="duty_code">${dutyTypeOptions()}</select></label><label>จำนวนเวลา OT (ชั่วโมง) <input name="manual_hours" type="number" min="0" max="24" step="0.5" placeholder="เช่น 8 / 16 / 24"></label><label>หมายเหตุ Admin <input name="admin_note" placeholder="เช่น ลงย้อนหลังแทนน้อง"></label></div>` : '';
+    const staffMode = isAdmin() ? `<div class="form-grid two-cols admin-checkin-fields"><label>เลือกชื่อเจ้าหน้าที่ <select name="staff_id" required>${activeStaffOptionsV165(currentStaffId())}</select></label><label>เลือกประเภทเวร <select name="duty_code">${dutyTypeOptionsV165()}</select></label><label>จำนวนเวลา OT (ชั่วโมง) <input name="manual_hours" type="number" min="0" max="24" step="0.5" placeholder="เช่น 8 / 16 / 24"></label><label>หมายเหตุ Admin <input name="admin_note" placeholder="เช่น ลงย้อนหลังแทนน้อง"></label></div>` : '';
     return `<div class="grid grid-2 ot-page v163-ot-page">
       <div class="card ot-card">
         <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
@@ -6693,6 +6696,34 @@ function bindGlobalEvents() {
   }
   window.normalizePasswordForLoginV165 = normalizePasswordForLoginV165;
 
+  function activeStaffOptionsV165(selectedId){
+    let rows = [];
+    try { rows = orderedStaff((state.staff || []).filter(st => st && st.is_active !== false)); }
+    catch (_) { rows = (state.staff || []).filter(st => st && st.is_active !== false); }
+    return rows.map(st => `<option value="${esc165(st.id)}" ${String(st.id) === String(selectedId || '') ? 'selected' : ''}>${esc165(st.nickname || st.full_name || st.email || '-')} ${st.staff_type ? `(${esc165(st.staff_type)})` : ''}</option>`).join('');
+  }
+  function dutyTypeOptionsV165(selected=''){
+    const opts = [
+      ['','เลือกตามตารางเวร / ไม่ระบุ'],
+      ['ชบด1','ชบด1'], ['ชบด2','ชบด2'], ['ชบด3','ชบด3'],
+      ['ช4A','ช4'], ['ช3A','ช3A'], ['ช3B','ช3B'],
+      ['ช9-เคิก','ช9-เคิก'], ['ช9-MT','ช9-MT'], ['manual','อื่น ๆ / ระบุจำนวนเวลาเอง']
+    ];
+    return opts.map(([v,t]) => `<option value="${esc165(v)}" ${String(v)===String(selected)?'selected':''}>${esc165(t)}</option>`).join('');
+  }
+  function timeNowShortV165(){
+    const d = new Date();
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function rosterDutiesForV165(staffId, date){
+    const key = normalizeDateKey(date);
+    return (state.rosterAssignments || []).filter(a => String(a?.staff_id) === String(staffId) && normalizeDateKey(a?.duty_date) === key);
+  }
+  function alreadyAttendanceV165(staffId, date){
+    const key = normalizeDateKey(date);
+    return (state.attendance || []).some(a => String(a?.staff_id) === String(staffId) && normalizeDateKey(a?.duty_date) === key);
+  }
+
   const oldBind = window.bindGlobalEvents || (typeof bindGlobalEvents === 'function' ? bindGlobalEvents : null);
   if (oldBind) {
     window.bindGlobalEvents = bindGlobalEvents = function bindGlobalEventsV165(){
@@ -6774,12 +6805,12 @@ function bindGlobalEvents() {
   window.renderOtPage = renderOtPage = function renderOtPageV165(){
     const today = todayStr();
     const proxyOptions = selfPaidDutyProxyOptions(today);
-    const myDutyToday = rosterDutiesFor(currentStaffId(), today).length > 0;
-    const myLoggedToday = alreadyAttendance(currentStaffId(), today);
+    const myDutyToday = rosterDutiesForV165(currentStaffId(), today).length > 0;
+    const myLoggedToday = alreadyAttendanceV165(currentStaffId(), today);
     const mine = (state.otRequests || []).filter(x => String(x.staff_id) === String(currentStaffId()));
     const rows = isAdmin() ? (state.otRequests || []) : mine;
     const proxyBox = proxyOptions.length ? `<div class="notice soft-notice compact"><b>วันนี้มีข้อตกลงจ่ายกันเองที่คุณเป็นคนมาทำแทน</b><br>${proxyOptions.map(x => `ลงชื่อแทนเวรของ ${staffPill(x.assignment.staff_id)} • ${esc165(DUTY_LABEL[x.assignment.duty_code] || x.assignment.duty_code)}`).join('<br>')}</div>` : '';
-    const staffMode = isAdmin() ? `<div class="admin-checkin-fields v165-admin-checkin-fields"><label>เลือกชื่อเจ้าหน้าที่ <select name="staff_id" required>${activeStaffOptions(currentStaffId())}</select></label><label>เลือกประเภทเวร <select name="duty_code">${dutyTypeOptions()}</select></label><label>จำนวนเวลา OT (ชั่วโมง) <input name="manual_hours" type="number" min="0" max="24" step="0.5" placeholder="เช่น 8 / 16 / 24"></label><label>หมายเหตุ Admin <input name="admin_note" placeholder="เช่น ลงย้อนหลังแทนน้อง"></label></div>` : '';
+    const staffMode = isAdmin() ? `<div class="admin-checkin-fields v165-admin-checkin-fields"><label>เลือกชื่อเจ้าหน้าที่ <select name="staff_id" required>${activeStaffOptionsV165(currentStaffId())}</select></label><label>เลือกประเภทเวร <select name="duty_code">${dutyTypeOptionsV165()}</select></label><label>จำนวนเวลา OT (ชั่วโมง) <input name="manual_hours" type="number" min="0" max="24" step="0.5" placeholder="เช่น 8 / 16 / 24"></label><label>หมายเหตุ Admin <input name="admin_note" placeholder="เช่น ลงย้อนหลังแทนน้อง"></label></div>` : '';
     return `<div class="grid grid-2 ot-page v163-ot-page v165-ot-page">
       <div class="card ot-card">
         <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
@@ -6790,7 +6821,7 @@ function bindGlobalEvents() {
           <div class="v165-checkin-fields">
             <label>วันที่อยู่เวร <input name="duty_date" type="date" value="${esc165(today)}" required></label>
             <label>เวลาเริ่มทำงาน <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label>
-            <label>เวลาสิ้นสุด <input name="end_time" type="time" value="${esc165(timeNowShort())}" required></label>
+            <label>เวลาสิ้นสุด <input name="end_time" type="time" value="${esc165(timeNowShortV165())}" required></label>
           </div>
           ${staffMode}
           <button class="primary-btn wide" type="submit">ยืนยันรับ OT / อยู่เวร</button>
@@ -6818,4 +6849,92 @@ function bindGlobalEvents() {
       </div>
     </div>`;
   };
+})();
+
+
+/* =========================
+   V166 Default Password Reset + Password Toggle + OT Render Guard
+   ========================= */
+(function(){
+  'use strict';
+  function esc166(v){
+    try { return escapeHtml(v == null ? '' : String(v)); }
+    catch (_) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  }
+  function defaultPasswordPreviewV166(staff){
+    const code = String(staff?.employee_code || '').trim();
+    return code ? `CNMI@${code}` : '';
+  }
+  window.resetUserPasswordToDefault = async function resetUserPasswordToDefaultV166(staffId){
+    if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น', { tone:'error' });
+    const staff = (state.staff || []).find(st => String(st.id) === String(staffId));
+    if (!staff) return showToast('ไม่พบข้อมูลเจ้าหน้าที่', { tone:'error' });
+    if (!staff.email) return showToast('เจ้าหน้าที่คนนี้ยังไม่มีอีเมล', { tone:'error' });
+    if (!staff.employee_code) return showToast('เจ้าหน้าที่คนนี้ยังไม่มีรหัสพนักงาน จึงรีเซ็ตรหัสเริ่มต้นไม่ได้', { tone:'error' });
+    if (!CFG.APP_SCRIPT_URL) return showToast('ยังไม่ได้ตั้งค่า APP_SCRIPT_URL จึงรีเซ็ตรหัสผ่านผ่าน Backend ไม่ได้', { tone:'error' });
+    const initialPassword = defaultPasswordPreviewV166(staff);
+    const ok = await confirmDialog(`รีเซ็ตรหัสผ่านของ ${staff.nickname || staff.full_name || staff.email} เป็นค่าเริ่มต้น ${initialPassword} และบังคับให้เปลี่ยนรหัสหลัง Login?`, 'รีเซ็ตรหัสผ่านเป็นค่าเริ่มต้น');
+    if (!ok) return;
+    setBusy(true, 'กำลังรีเซ็ตรหัสผ่านเป็นค่าเริ่มต้น');
+    try {
+      const res = await fetch(CFG.APP_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'adminResetStaffDefaultPassword',
+          staffId: staff.id,
+          email: staff.email,
+          accessToken: state.session?.access_token || null
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.message || 'รีเซ็ตรหัสผ่านไม่สำเร็จ');
+      await loadAllData();
+      renderPage();
+      showToast(`รีเซ็ตรหัสผ่านแล้ว: ${data.initial_password_rule || initialPassword}`);
+    } catch (err) {
+      showToast(err.message || 'รีเซ็ตรหัสผ่านไม่สำเร็จ', { tone:'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  document.addEventListener('click', function(e){
+    const resetBtn = e.target && e.target.closest ? e.target.closest('[data-reset-default-password-staff]') : null;
+    if (resetBtn) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      window.resetUserPasswordToDefault(resetBtn.dataset.resetDefaultPasswordStaff);
+      return;
+    }
+    const toggle = e.target && e.target.closest ? e.target.closest('[data-toggle-password]') : null;
+    if (!toggle) return;
+    const input = document.getElementById(toggle.dataset.togglePassword);
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+    toggle.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+    toggle.textContent = show ? '🙈' : '👁';
+  }, true);
+
+  const previousRenderOtPageV166 = window.renderOtPage || (typeof renderOtPage === 'function' ? renderOtPage : null);
+  if (previousRenderOtPageV166) {
+    window.renderOtPage = renderOtPage = function renderOtPageGuardedV166(){
+      try {
+        return previousRenderOtPageV166.apply(this, arguments);
+      } catch (err) {
+        console.error('V166 renderOtPage failed; fallback to safe OT page', err);
+        const today = todayStr();
+        const mine = (state.otRequests || []).filter(x => String(x.staff_id) === String(currentStaffId()));
+        const rows = isAdmin() ? (state.otRequests || []) : mine;
+        return `<div class="grid grid-2 ot-page v165-ot-page v166-ot-page">
+          <div class="card ot-card"><h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3><form id="attendanceForm" class="form-grid compact-form attendance-form v165-attendance-form"><div class="v165-checkin-fields"><label>วันที่อยู่เวร <input name="duty_date" type="date" value="${esc166(today)}" required></label><label>เวลาเริ่มทำงาน <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label><label>เวลาสิ้นสุด <input name="end_time" type="time" required></label></div><button class="primary-btn wide" type="submit">ยืนยันรับ OT / อยู่เวร</button></form><p class="hint gps-help compact">โหมดสำรอง: ระบบตัดส่วนที่ทำให้ render ค้างออกชั่วคราว แต่ยังลงชื่ออยู่เวรได้</p></div>
+          <div class="card ot-card"><h3>ส่วนที่ 2 ขอ OT เพิ่ม / เวรปั่นเลือด</h3><form id="otForm" class="form-grid v165-ot-extra-form"><label>วันที่ <input name="work_date" type="date" value="${esc166(today)}" required></label><label>ตั้งแต่เวลา <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label><label>ถึงเวลา <input name="end_time" type="time" required></label><label>เหตุผล <select name="reason">${OT_REASONS.map(r => `<option>${esc166(r)}</option>`).join('')}</select></label><label class="wide">รายละเอียด <input name="note"></label><button class="primary-btn wide" type="submit">ยืนยันขอ OT เพิ่ม</button></form></div>
+          <div class="card wide-card" style="grid-column:1/-1;"><div class="section-title"><h3>${isAdmin() ? 'ส่วนที่ 3 อนุมัติ OT' : 'รายการ OT ของฉัน'}</h3>${isAdmin() ? '<button class="ghost-btn" data-export-ot-excel>Export Excel สรุปเดือนนี้</button>' : ''}</div>${renderOtTable(rows)}</div>
+          <div class="card" style="grid-column:1/-1;"><h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">สรุปเฉพาะรายการที่อนุมัติแล้ว</p>${renderOtSummary()}</div>
+        </div>`;
+      }
+    };
+  }
 })();
