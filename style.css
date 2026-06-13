@@ -2880,9 +2880,23 @@ thead .v179-sticky-first-col {
 /* V191 OT approval RBAC + Admin edit/delete */
 .v191-ot-table th:last-child,
 .v191-ot-table td:last-child { min-width: 210px; }
-.v191-ot-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.v191-ot-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  align-items:center;
+  justify-content:flex-start;
+}
+.v191-ot-actions .tiny-btn { white-space:nowrap; }
 .v191-ot-actions .icon-btn { min-width:32px; padding:4px 7px; line-height:1; }
-.v191-status-actions { display:flex; flex-wrap:wrap; gap:4px; padding-left:4px; border-left:1px solid rgba(0,0,0,.08); }
+.v191-status-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  align-items:center;
+  padding-left:6px;
+  border-left:1px solid rgba(0,0,0,.08);
+}
 .v191-ot-edit-modal .notice { margin: 8px 0 14px; }
 .v191-ot-edit-modal .form-grid label textarea { width:100%; }
 .v191-approval-reset { display:flex; gap:8px; align-items:flex-start; padding:10px 12px; border-radius:12px; background:#fff8d7; }

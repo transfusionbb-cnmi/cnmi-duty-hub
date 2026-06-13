@@ -2804,12 +2804,12 @@ function renderOtTable(rows) {
   const visible = (isAdmin() ? filteredOtRows(rows) : rows.slice().sort((a,b) => normalizeDateKey(b.work_date).localeCompare(normalizeDateKey(a.work_date)) || String(b.created_at || '').localeCompare(String(a.created_at || ''))));
   const filters = isAdmin() ? renderOtFilters() : '';
   if (!visible.length) return filters + empty(isAdmin() ? 'ยังไม่มีรายการ OT ตามตัวกรองนี้' : 'ยังไม่มีรายการ OT');
-  const actionButtons = r => isAdmin() ? `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : '-';
+  const actionButtons = r => isAdmin() ? `<div class="actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : '-';
   const statusBadge = r => badge(r.status, r.status==='อนุมัติ'?'green':r.status==='ไม่อนุมัติ'?'red':r.status==='ส่งกลับแก้ไข'?'orange':'black');
   const table = `<div class="table-wrap ot-desktop-table"><table><thead><tr><th>ชื่อ</th><th>วันที่ทำงาน</th><th>เวลาสิ้นสุด</th><th>เหตุผล</th><th>ชั่วโมง</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
     ${visible.map(r => `<tr><td>${staffPill(r.staff_id)}</td><td>${formatThaiDate(r.work_date)}</td><td>${escapeHtml(r.end_time || '-')}</td><td>${escapeHtml(r.reason || '')}<br><span class="muted">${escapeHtml(r.note || '')}</span></td><td>${calcOtHours(r).toFixed(1)}</td><td>${statusBadge(r)}</td><td>${actionButtons(r)}</td></tr>`).join('')}
   </tbody></table></div>`;
-  const cards = `<div class="mobile-cards ot-mobile-cards">${visible.map(r => `<div class="mobile-card"><div class="mobile-day-head">${staffPill(r.staff_id)}${statusBadge(r)}</div><div><b>${formatThaiDate(r.work_date)}</b><br><span class="muted">สิ้นสุด ${escapeHtml(r.end_time || '-')}</span></div><div><b>เหตุผล:</b> ${escapeHtml(r.reason || '')}<br><span class="muted">${escapeHtml(r.note || '')}</span></div><div><b>ชั่วโมง:</b> ${calcOtHours(r).toFixed(1)}</div>${isAdmin() ? `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
+  const cards = `<div class="mobile-cards ot-mobile-cards">${visible.map(r => `<div class="mobile-card"><div class="mobile-day-head">${staffPill(r.staff_id)}${statusBadge(r)}</div><div><b>${formatThaiDate(r.work_date)}</b><br><span class="muted">สิ้นสุด ${escapeHtml(r.end_time || '-')}</span></div><div><b>เหตุผล:</b> ${escapeHtml(r.reason || '')}<br><span class="muted">${escapeHtml(r.note || '')}</span></div><div><b>ชั่วโมง:</b> ${calcOtHours(r).toFixed(1)}</div>${isAdmin() ? `<div class="actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
   return filters + table + cards;
 }
 function renderOtSummary() {
@@ -7832,12 +7832,12 @@ function bindGlobalEvents() {
       const visible = (isAdmin() ? filteredOtRows(rows) : rows.slice().sort((a,b) => normalizeDateKey(b.work_date).localeCompare(normalizeDateKey(a.work_date)) || String(b.created_at || '').localeCompare(String(a.created_at || ''))));
       const filters = isAdmin() ? renderOtFilters() : '';
       if (!visible.length) return filters + empty(isAdmin() ? 'ยังไม่มีรายการ OT ตามตัวกรองนี้' : 'ยังไม่มีรายการ OT');
-      const actionButtons = r => isAdmin() ? `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : '-';
+      const actionButtons = r => isAdmin() ? `<div class="actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : '-';
       const statusBadgeLocal = r => badge(r.status, r.status==='อนุมัติ'?'green':r.status==='ไม่อนุมัติ'?'red':r.status==='ส่งกลับแก้ไข'?'orange':'black');
       const table = `<div class="table-wrap ot-desktop-table"><table><thead><tr><th>ชื่อ</th><th>ช่วงเวลาทำงาน</th><th>เหตุผล</th><th>ชั่วโมง</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>
         ${visible.map(r => `<tr><td>${staffPill(r.staff_id)}</td><td>${otTimeTextV170(r)}</td><td>${esc170(r.reason || '')}<br><span class="muted">${esc170(r.note || '')}</span></td><td>${calcOtHours(r).toFixed(1)}</td><td>${statusBadgeLocal(r)}</td><td>${actionButtons(r)}</td></tr>`).join('')}
       </tbody></table></div>`;
-      const cards = `<div class="mobile-cards ot-mobile-cards">${visible.map(r => `<div class="mobile-card"><div class="mobile-day-head">${staffPill(r.staff_id)}${statusBadgeLocal(r)}</div><div><b>ช่วงเวลาทำงาน</b><br>${otTimeTextV170(r)}</div><div><b>เหตุผล:</b> ${esc170(r.reason || '')}<br><span class="muted">${esc170(r.note || '')}</span></div><div><b>ชั่วโมง:</b> ${calcOtHours(r).toFixed(1)}</div>${isAdmin() ? `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
+      const cards = `<div class="mobile-cards ot-mobile-cards">${visible.map(r => `<div class="mobile-card"><div class="mobile-day-head">${staffPill(r.staff_id)}${statusBadgeLocal(r)}</div><div><b>ช่วงเวลาทำงาน</b><br>${otTimeTextV170(r)}</div><div><b>เหตุผล:</b> ${esc170(r.reason || '')}<br><span class="muted">${esc170(r.note || '')}</span></div><div><b>ชั่วโมง:</b> ${calcOtHours(r).toFixed(1)}</div>${isAdmin() ? `<div class="actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" data-ot-status="${r.id}|${s}">${s}</button>`).join('')}</div>` : ''}</div>`).join('')}</div>`;
       return filters + table + cards;
     } catch (err) {
       console.warn(`${VERSION_V170} table fallback`, err);
@@ -8430,7 +8430,7 @@ function bindGlobalEvents() {
   }
   function otActionButtons176(row){
     if (isAdmin()) {
-      return `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${row.id}|${s}">${s}</button>`).join('')}</div>`;
+      return `<div class="actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" data-ot-status="${row.id}|${s}">${s}</button>`).join('')}</div>`;
     }
     return canDeleteRejectedOt176(row) ? `<div class="actions">${deleteRejectedOtButton176(row)}</div>` : '-';
   }
@@ -10579,7 +10579,7 @@ function bindGlobalEvents() {
     return ['ไม่อนุมัติ','ไม่อนุมัติแล้ว','rejected','reject','denied','not_approved','not approved'].includes(s);
   }
   function otActionButtons190(row){
-    if (isAdmin()) return `<div class="actions">${OT_STATUSES.map(s => `<button class="tiny-btn" data-ot-status="${row.id}|${s}">${s}</button>`).join('')}</div>`;
+    if (isAdmin()) return `<div class="actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" data-ot-status="${row.id}|${s}">${s}</button>`).join('')}</div>`;
     if (isRejectedStatus190(row?.status) && String(row?.staff_id || '') === String(currentStaffId() || '')) {
       return `<div class="actions"><button class="tiny-btn danger" type="button" data-delete-rejected-ot="${esc190(row?.id)}">ลบ</button></div>`;
     }
@@ -10955,7 +10955,7 @@ function bindGlobalEvents() {
   }
   function statusActions191(row){
     if (!Array.isArray(OT_STATUSES)) return '';
-    return `<div class="actions v191-status-actions">${OT_STATUSES.map(s => `<button class="tiny-btn" type="button" data-ot-status="${esc191(row.id)}|${esc191(s)}">${esc191(s)}</button>`).join('')}</div>`;
+    return `<div class="actions v191-status-actions">${OT_STATUSES.filter(s => s !== 'รออนุมัติ').map(s => `<button class="tiny-btn" type="button" data-ot-status="${esc191(row.id)}|${esc191(s)}">${esc191(s)}</button>`).join('')}</div>`;
   }
   function adminActionButtons191(row){
     const editDisabled = canAdminEdit191(row) ? '' : 'disabled';
