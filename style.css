@@ -2858,3 +2858,21 @@ thead .v179-sticky-first-col {
     flex-direction: column;
   }
 }
+
+/* V190 HR Rate Normalization */
+.v190-ot-table th:nth-child(4),
+.v190-ot-table th:nth-child(5),
+.v190-ot-table td:nth-child(4),
+.v190-ot-table td:nth-child(5),
+.v190-pending-summary th:nth-child(2),
+.v190-pending-summary th:nth-child(3),
+.v190-pending-summary td:nth-child(2),
+.v190-pending-summary td:nth-child(3) {
+  text-align: right;
+  white-space: nowrap;
+}
+.v190-ot-table .badge.yellow,
+.v190-ot-cards .badge.yellow {
+  margin-top: 3px;
+  display: inline-flex;
+}
