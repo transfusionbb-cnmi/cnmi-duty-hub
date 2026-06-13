@@ -1708,3 +1708,19 @@ body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
 .v162-schedule-grid thead .clean-summary-head{background:#f8fafc!important;}
 .v162-schedule-grid .clean-staff-head,
 .v162-schedule-grid .clean-staff-cell{left:0!important;}
+
+/* V163 Account/Profile merge + OT attendance form */
+.v163-profile-page .account-settings-card,
+.v163-profile-page .profile-card-readable { min-width: 0; }
+.v163-ot-page .attendance-form { margin-top: 10px; }
+.v163-ot-page .admin-checkin-fields {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(128, 202, 255, 0.10);
+  border-radius: 14px;
+  padding: 10px;
+}
+.v163-ot-page .admin-checkin-fields label { min-width: 0; }
+@media (max-width: 820px) {
+  .v163-ot-page .form-grid.two-cols,
+  .v163-ot-page .admin-checkin-fields { grid-template-columns: 1fr; }
+}

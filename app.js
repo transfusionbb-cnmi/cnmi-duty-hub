@@ -6260,3 +6260,353 @@ function bindGlobalEvents() {
   };
   try { renderGridView = window.renderGridView; } catch(_) {}
 })();
+
+/* =========================
+   V163 Account menu merge + Attendance backfill/Admin mode + Export RBAC
+   ========================= */
+(function(){
+  'use strict';
+  const VERSION_V163 = 'V163_ACCOUNT_PROFILE_OT_RBAC';
+
+  function esc(v){
+    try { return escapeHtml(v == null ? '' : String(v)); }
+    catch (_) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  }
+  function removeAccountSettingsMenu(){
+    try {
+      if (!Array.isArray(NAV_ITEMS)) return;
+      for (let i = NAV_ITEMS.length - 1; i >= 0; i--) {
+        if (NAV_ITEMS[i] && NAV_ITEMS[i].id === 'accountSettings') NAV_ITEMS.splice(i, 1);
+      }
+      const profileItem = NAV_ITEMS.find(x => x && x.id === 'myProfile');
+      if (profileItem) {
+        profileItem.title = 'ข้อมูลส่วนตัว';
+        profileItem.subtitle = 'ดูข้อมูล ส่งคำขอแก้ไข และเปลี่ยน Username/Password';
+      }
+    } catch (err) { console.warn(`${VERSION_V163} remove menu skipped`, err); }
+  }
+  window.v163RemoveAccountSettingsMenu = removeAccountSettingsMenu;
+
+  function activeStaffOptions(selectedId){
+    let rows = [];
+    try { rows = orderedStaff((state.staff || []).filter(s => s && s.is_active !== false)); }
+    catch (_) { rows = state.staff || []; }
+    return rows.map(s => `<option value="${esc(s.id)}" ${String(s.id) === String(selectedId || '') ? 'selected' : ''}>${esc(s.nickname || s.full_name || s.email || '-')} ${s.staff_type ? `(${esc(s.staff_type)})` : ''}</option>`).join('');
+  }
+  function dutyTypeOptions(selected=''){
+    const opts = [
+      ['','เลือกตามตารางเวร / ไม่ระบุ'],
+      ['ชบด1','ชบด1'], ['ชบด2','ชบด2'], ['ชบด3','ชบด3'],
+      ['ช4A','ช4'], ['ช3A','ช3A'], ['ช3B','ช3B'],
+      ['ช9-เคิก','ช9-เคิก'], ['ช9-MT','ช9-MT'], ['manual','อื่น ๆ / ระบุจำนวนเวลาเอง']
+    ];
+    return opts.map(([v,t]) => `<option value="${esc(v)}" ${String(v)===String(selected)?'selected':''}>${esc(t)}</option>`).join('');
+  }
+  function timeNowShort(){
+    const d = new Date();
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function rosterDutiesFor(staffId, date){
+    const key = normalizeDateKey(date);
+    return (state.rosterAssignments || []).filter(a => String(a?.staff_id) === String(staffId) && normalizeDateKey(a?.duty_date) === key);
+  }
+  function alreadyAttendance(staffId, date){
+    const key = normalizeDateKey(date);
+    return (state.attendance || []).some(a => String(a?.staff_id) === String(staffId) && normalizeDateKey(a?.duty_date) === key);
+  }
+  function manualHoursFromNote(note){
+    const m = String(note || '').match(/จำนวนเวลา\s*([0-9]+(?:\.[0-9]+)?)\s*ชั่วโมง/);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  function hoursBetween(date, startTime, endTime){
+    const key = normalizeDateKey(date);
+    if (!key || !startTime || !endTime) return 0;
+    const start = new Date(`${key}T${String(startTime).length === 5 ? `${startTime}:00` : startTime}`);
+    let end = new Date(`${key}T${String(endTime).length === 5 ? `${endTime}:00` : endTime}`);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return 0;
+    if (end < start) end = new Date(end.getTime() + 24 * 36e5);
+    const h = (end - start) / 36e5;
+    return Number.isFinite(h) && h >= 0 ? Math.round(h * 10) / 10 : 0;
+  }
+
+  const previousCalcOtHours = (typeof window.calcOtHours === 'function') ? window.calcOtHours : (typeof calcOtHours === 'function' ? calcOtHours : null);
+  window.calcOtHours = calcOtHours = function calcOtHoursV163(row){
+    try {
+      const manual = manualHoursFromNote(row?.note);
+      if (manual !== null && String(row?.reason || '').includes('ยืนยันอยู่เวร')) return manual;
+      const workDate = normalizeDateKey(row?.work_date);
+      const startTime = String(row?.start_time || '').trim();
+      const endTime = String(row?.end_time || '').trim();
+      if (String(row?.reason || '').includes('ยืนยันอยู่เวร') && startTime && endTime && !rosterDutiesFor(row?.staff_id, workDate).length) {
+        return hoursBetween(workDate, startTime, endTime);
+      }
+      if (previousCalcOtHours) return previousCalcOtHours(row);
+      return hoursBetween(workDate, startTime || `${pad(otStartHourForDate(workDate))}:00`, endTime);
+    } catch (err) {
+      console.warn(`${VERSION_V163} calcOtHours fallback`, err);
+      return previousCalcOtHours ? previousCalcOtHours(row) : 0;
+    }
+  };
+
+  window.renderNav = renderNav = function renderNavV163(){
+    removeAccountSettingsMenu();
+    if (typeof v161IsFirstLoginProfile === 'function' && v161IsFirstLoginProfile()) {
+      const nav = $('mainNav'); if (nav) nav.innerHTML = `<div class="nav-force-note">ต้องตั้งค่า Username / Password ก่อน</div>`;
+      return;
+    }
+    const nav = $('mainNav');
+    if (nav) {
+      nav.innerHTML = (NAV_GROUPS || []).map(group => {
+        const items = (NAV_ITEMS || []).filter(item => item.group === group.id && (!group.adminOnly || isAdmin()) && item.id !== 'accountSettings');
+        if (!items.length) return '';
+        return `<div class="nav-section"><div class="nav-section-title"><span>${esc(group.title)}</span><small>${esc(group.hint)}</small></div>${items.map(item => `
+          <button class="nav-btn ${state.page === item.id ? 'active' : ''}" data-page="${esc(item.id)}">
+            <span class="nav-emoji">${esc(item.icon)}</span><span>${esc(item.title)}</span>
+          </button>`).join('')}</div>`;
+      }).join('');
+    }
+    const mini = $('userMini');
+    if (mini && state.profile) mini.innerHTML = `<div class="mini-profile">${staffPill(state.profile)}<br><span>${esc(state.profile.position || state.profile.role || '-')} • ${esc(state.profile.role || '-')}</span></div>`;
+  };
+
+  window.renderMyProfilePage = renderMyProfilePage = function renderMyProfilePageV163(){
+    const p = state.profile || {};
+    const normalize = (typeof normalizeRequest === 'function') ? normalizeRequest : (x => x);
+    const belongs = (typeof requestIsMine === 'function') ? requestIsMine : (typeof profileRequestBelongsToMe === 'function' ? profileRequestBelongsToMe : (() => true));
+    const reqs = (state.profileChangeRequests || []).map(normalize).filter(belongs).slice(0, 20);
+    return `<div class="grid grid-2 profile-page-grid v57-profile-page v160-profile-page v163-profile-page" id="myProfilePage">
+      <div class="card profile-card-readable">
+        <div class="section-title"><div><h3>ข้อมูลส่วนตัว</h3><p class="hint">แสดงข้อมูลจากตารางผู้ใช้งานจริงในระบบ</p></div></div>
+        <div class="profile-info-list">
+          <div><span>ชื่อเล่น</span><b>${esc(p.nickname || '-')}</b></div>
+          <div><span>ชื่อ-สกุล</span><b>${esc(p.full_name || '-')}</b></div>
+          <div><span>รหัสพนักงาน</span><b>${esc(p.employee_code || '-')}</b></div>
+          <div><span>เบอร์โทร</span><b>${esc(p.phone || '-')}</b></div>
+          <div><span>Email</span><b>${esc(p.email || '-')}</b></div>
+          <div><span>Username</span><b>${esc(p.login_name || '-')}</b></div>
+          <div><span>ประเภทเจ้าหน้าที่</span><b>${esc(p.staff_type || '-')}</b></div>
+          <div><span>ตำแหน่ง/สิทธิ์</span><b>${esc(p.position || '-')} / ${esc(p.role || '-')}</b></div>
+        </div>
+      </div>
+      <div class="card account-settings-card">
+        <div class="section-title"><div><h3>ตั้งค่าบัญชี</h3><p class="hint">รวมไว้ในหน้าเดียวกับข้อมูลส่วนตัว เพื่อลดเมนูซ้ำซ้อน</p></div></div>
+        <form id="directAccountForm" class="form-grid compact-form">
+          <label>Username ใหม่ <input name="login_name" value="${esc(p.login_name || '')}" placeholder="เช่น gift123 หรือรหัสพนักงาน" autocomplete="username"><span class="hint">ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง</span></label>
+          <label>Password ใหม่ <input name="password" type="password" placeholder="เว้นว่างถ้าไม่เปลี่ยน" autocomplete="new-password"></label>
+          <label>ยืนยัน Password ใหม่ <input name="password2" type="password" placeholder="กรอกซ้ำ" autocomplete="new-password"></label>
+          <button class="primary-btn wide" type="submit">บันทึก Username / Password</button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="section-title"><div><h3>ขอแก้ไขข้อมูลอื่น</h3><p class="hint">ข้อมูลที่ต้องให้ Admin ตรวจ เช่น เบอร์โทร ชื่อเล่น ชื่อ-สกุล</p></div></div>
+        <form id="profileChangeForm" class="form-grid compact-form">
+          <div class="form-grid two-cols"><label>ต้องการแก้ไข <select name="field_name" required><option value="phone">เบอร์โทร</option><option value="nickname">ชื่อเล่น</option><option value="full_name">ชื่อ-สกุล</option></select></label><label>ข้อมูลใหม่ <input name="new_value" required placeholder="กรอกข้อมูลใหม่"></label></div>
+          <label>เหตุผล/หมายเหตุ <textarea name="note" placeholder="เช่น เปลี่ยนเบอร์โทร / สะกดชื่อผิด"></textarea></label>
+          <button class="primary-btn full-btn" type="submit">ส่งคำขอให้ Admin อนุมัติ</button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="section-title"><h3>คำขอล่าสุดของฉัน</h3><button class="ghost-btn" type="button" onclick="loadProfileChangeRequests().then(renderPage)">รีเฟรช</button></div>
+        ${reqs.length ? `<div class="mobile-cards always-cards">${reqs.map(r => (typeof requestCard === 'function' ? requestCard(r, false, false) : `<div class="mobile-card"><b>${esc(profileFieldLabel(r.field_name || '-'))}</b></div>`)).join('')}</div>` : empty('ยังไม่มีคำขอ')}
+      </div>
+    </div>`;
+  };
+
+
+  function forceAccountSetupHtmlV163(){
+    const p = state.profile || {};
+    const recommended = String(p.login_name || p.employee_code || '').trim().toLowerCase();
+    return `<div class="force-setup-shell">
+      <div class="card force-setup-card">
+        <div class="section-title"><div><h3>ตั้งค่า Username / Password ก่อนเริ่มใช้งาน</h3><p class="hint">บัญชีนี้เป็นการเข้าใช้งานครั้งแรกด้วยรหัสผ่านเริ่มต้น ระบบจึงบังคับให้เปลี่ยนรหัสผ่านก่อนเข้าเมนูอื่น</p></div></div>
+        <div class="profile-info-list compact-info"><div><span>ชื่อ</span><b>${esc(p.nickname || p.full_name || '-')}</b></div><div><span>Email</span><b>${esc(p.email || '-')}</b></div><div><span>รหัสพนักงาน</span><b>${esc(p.employee_code || '-')}</b></div></div>
+        <form id="v161ForceAccountForm" class="form-grid compact-form">
+          <label>Username ใหม่ <input name="login_name" value="${esc(recommended)}" placeholder="เช่น gift123 หรือรหัสพนักงาน" autocomplete="username" required></label>
+          <label>Password ใหม่ <input name="password" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="new-password" required></label>
+          <label>ยืนยัน Password ใหม่ <input name="password2" type="password" placeholder="กรอกซ้ำ" autocomplete="new-password" required></label>
+          <button class="primary-btn wide" type="submit">บันทึกและเริ่มใช้งาน</button>
+        </form>
+        <p class="hint">หลังบันทึกสำเร็จ ระบบจะปลดล็อกเมนูทั้งหมดอัตโนมัติ</p>
+      </div>
+    </div>`;
+  }
+
+  window.renderPage = renderPage = function renderPageV163(){
+    removeAccountSettingsMenu();
+    if (state.page === 'accountSettings') state.page = 'myProfile';
+    if (typeof v161IsFirstLoginProfile === 'function' && v161IsFirstLoginProfile()) {
+      const title = $('pageTitle'); if (title) title.textContent = 'ตั้งค่า Username / Password';
+      const subtitle = $('pageSubtitle'); if (subtitle) subtitle.textContent = 'เข้าใช้งานครั้งแรก';
+      renderNav();
+      const content = $('pageContent'); if (content) content.innerHTML = forceAccountSetupHtmlV163();
+      return;
+    }
+    const item = (NAV_ITEMS || []).find(x => x.id === state.page) || (NAV_ITEMS || [])[0] || { title:'', subtitle:'' };
+    const title = $('pageTitle'); if (title) title.textContent = item.title || '';
+    const subtitle = $('pageSubtitle'); if (subtitle) subtitle.textContent = item.subtitle || '';
+    renderNav();
+    const pages = {
+      dashboard: renderDashboard,
+      calendar: renderCalendar,
+      leave: renderLeavePage,
+      myProfile: renderMyProfilePage,
+      activities: renderActivitiesPage,
+      hr: renderHrPage,
+      hrSummary: renderHrSummaryPage,
+      scheduler: renderSchedulerPage,
+      schedule: renderMonthlySchedulePage,
+      tradeRequests: renderTradeRequestsPage,
+      positions: renderPositionsPage,
+      ot: renderOtPage,
+      audit: renderAuditPage,
+      profileRequests: renderProfileRequestsPage,
+      profileRequestSummary: (typeof renderProfileRequestSummaryPage === 'function' ? renderProfileRequestSummaryPage : renderProfileRequestsPage),
+      users: renderUsersPage,
+      eligibility: renderEligibilityPage,
+      positionMonth: renderPositionMonthPage,
+      positionMonthView: renderPositionMonthViewPage
+    };
+    const content = $('pageContent');
+    if (content) content.innerHTML = (pages[state.page] || renderDashboard)();
+  };
+
+  window.renderOtPage = renderOtPage = function renderOtPageV163(){
+    const today = todayStr();
+    const proxyOptions = selfPaidDutyProxyOptions(today);
+    const myDutyToday = rosterDutiesFor(currentStaffId(), today).length > 0;
+    const myLoggedToday = alreadyAttendance(currentStaffId(), today);
+    const mine = (state.otRequests || []).filter(x => String(x.staff_id) === String(currentStaffId()));
+    const rows = isAdmin() ? (state.otRequests || []) : mine;
+    const proxyBox = proxyOptions.length ? `<div class="notice soft-notice compact"><b>วันนี้มีข้อตกลงจ่ายกันเองที่คุณเป็นคนมาทำแทน</b><br>${proxyOptions.map(x => `ลงชื่อแทนเวรของ ${staffPill(x.assignment.staff_id)} • ${esc(DUTY_LABEL[x.assignment.duty_code] || x.assignment.duty_code)}`).join('<br>')}</div>` : '';
+    const staffMode = isAdmin() ? `<div class="form-grid two-cols admin-checkin-fields"><label>เลือกชื่อเจ้าหน้าที่ <select name="staff_id" required>${activeStaffOptions(currentStaffId())}</select></label><label>เลือกประเภทเวร <select name="duty_code">${dutyTypeOptions()}</select></label><label>จำนวนเวลา OT (ชั่วโมง) <input name="manual_hours" type="number" min="0" max="24" step="0.5" placeholder="เช่น 8 / 16 / 24"></label><label>หมายเหตุ Admin <input name="admin_note" placeholder="เช่น ลงย้อนหลังแทนน้อง"></label></div>` : '';
+    return `<div class="grid grid-2 ot-page v163-ot-page">
+      <div class="card ot-card">
+        <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
+        <p class="muted">${isAdmin() ? 'Admin สามารถลงเวลาแทนเจ้าหน้าที่ และระบุประเภทเวร/จำนวนเวลาได้' : (myDutyToday ? 'วันนี้มีชื่อคุณในตารางเวร' : proxyOptions.length ? 'วันนี้คุณเป็นผู้มาทำเวรแทนตามข้อตกลงกันเอง / จ่ายกันเอง' : 'เลือกวันที่และเวลาจริงที่ทำงาน หากไม่พบชื่อในตาราง ระบบจะแจ้งให้ตรวจสอบ')}</p>
+        ${myLoggedToday ? `<div class="notice soft-notice compact">วันนี้มีบันทึกลงชื่ออยู่เวรแล้ว</div>` : ''}
+        ${proxyBox}
+        <form id="attendanceForm" class="form-grid compact-form attendance-form">
+          <div class="form-grid two-cols">
+            <label>วันที่อยู่เวร <input name="duty_date" type="date" value="${esc(today)}" required></label>
+            <label>เวลาเริ่มทำงาน <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label>
+            <label>เวลาสิ้นสุด <input name="end_time" type="time" value="${esc(timeNowShort())}" required></label>
+          </div>
+          ${staffMode}
+          <button class="primary-btn wide" type="submit">ยืนยันรับ OT / อยู่เวร</button>
+        </form>
+        <p class="hint gps-help compact">ใช้ GPS เพื่อตรวจว่าอยู่ในพื้นที่โรงพยาบาลก่อนยืนยัน และรองรับการบันทึกย้อนหลังตามเวลาจริง</p>
+      </div>
+      <div class="card ot-card">
+        <h3>ส่วนที่ 2 ขอ OT เพิ่ม / เวรปั่นเลือด</h3>
+        <p class="hint compact">ช4 และชั่วโมงเพิ่มของ ช3A/ช3B จะยังไม่คิดอัตโนมัติ ให้บันทึกเวลาจริง แล้ว Admin เทียบ LIS ก่อนอนุมัติ</p>
+        <form id="otForm" class="form-grid">
+          <label>วันที่ <input name="work_date" type="date" value="${esc(today)}" required></label>
+          <label>ตั้งแต่เวลา (Start time) <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label>
+          <label>ถึงเวลา (End time) <input name="end_time" type="time" required></label>
+          <label>เหตุผล <select name="reason">${OT_REASONS.map(r => `<option>${esc(r)}</option>`).join('')}</select></label>
+          <label class="wide">รายละเอียด <input name="note" placeholder="เช่น ปั่นเลือดถึง 18:20 / รอเทียบ LIS"></label>
+          <button class="primary-btn wide" type="submit">ยืนยันขอ OT เพิ่ม</button>
+        </form>
+      </div>
+      <div class="card wide-card" style="grid-column:1/-1;">
+        <div class="section-title"><h3>${isAdmin() ? 'ส่วนที่ 3 อนุมัติ OT' : 'รายการ OT ของฉัน'}</h3>${isAdmin() ? '<button class="ghost-btn" data-export-ot-excel>Export Excel สรุปเดือนนี้</button>' : ''}</div>
+        ${renderOtTable(rows)}
+      </div>
+      <div class="card" style="grid-column:1/-1;">
+        <h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">สรุปเฉพาะรายการที่อนุมัติแล้ว</p>${renderOtSummary()}
+      </div>
+    </div>`;
+  };
+
+  async function saveAttendanceV163(form){
+    const fd = new FormData(form);
+    const dutyDate = normalizeDateKey(fd.get('duty_date'));
+    const startTime = String(fd.get('start_time') || '').trim();
+    const endTime = String(fd.get('end_time') || '').trim();
+    let staffId = isAdmin() ? String(fd.get('staff_id') || '') : String(currentStaffId() || '');
+    const dutyCode = String(fd.get('duty_code') || '').trim();
+    const manualHoursRaw = String(fd.get('manual_hours') || '').trim();
+    const manualHours = manualHoursRaw === '' ? null : Number(manualHoursRaw);
+    const adminNote = String(fd.get('admin_note') || '').trim();
+    if (!dutyDate) return showToast('กรุณาเลือกวันที่อยู่เวร', { tone:'error' });
+    if (!startTime || !endTime) return showToast('กรุณาระบุเวลาเริ่มทำงานและเวลาสิ้นสุด', { tone:'error' });
+    if (!staffId) return showToast('กรุณาเลือกเจ้าหน้าที่', { tone:'error' });
+    if (manualHours !== null && (!Number.isFinite(manualHours) || manualHours < 0 || manualHours > 24)) return showToast('จำนวนเวลา OT ต้องอยู่ระหว่าง 0–24 ชั่วโมง', { tone:'error' });
+
+    const duties = rosterDutiesFor(staffId, dutyDate);
+    let proxyText = '';
+    if (!isAdmin()) {
+      if (!duties.length) {
+        const proxy = selfPaidDutyProxyOptions(dutyDate)[0];
+        if (proxy?.assignment?.staff_id) {
+          staffId = proxy.assignment.staff_id;
+          proxyText = `ลงชื่อแทนโดย ${staffNick(currentStaffId())} จากข้อตกลงจ่ายกันเอง request:${proxy.request.id}`;
+        } else {
+          return showToast('ยังไม่พบชื่อคุณในตารางเวรของวันที่เลือก กรุณาให้ Admin ตรวจตารางก่อน', { tone:'error' });
+        }
+      }
+    }
+
+    const pos = await getGps();
+    if (!pos.ok) return showGpsHelp(pos.message);
+    if (!isInsideGeofence(pos) && CFG.GEOFENCE?.enabled) return showGpsHelp('ไม่ได้อยู่ในพื้นที่โรงพยาบาล');
+    const checkInDate = new Date(`${dutyDate}T${startTime.length === 5 ? `${startTime}:00` : startTime}`);
+    const deviceInfo = [navigator.userAgent, `V163 start ${startTime}`, `end ${endTime}`, proxyText, isAdmin() ? `admin:${staffNick(currentStaffId())}` : ''].filter(Boolean).join(' | ').slice(0, 250);
+
+    setBusy(true, 'กำลังบันทึกการอยู่เวร');
+    try {
+      const att = await sb.from('attendance_logs').insert({ staff_id: staffId, duty_date: dutyDate, check_in_at: Number.isFinite(checkInDate.getTime()) ? checkInDate.toISOString() : new Date().toISOString(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: deviceInfo });
+      if (att.error) throw att.error;
+
+      const alreadyRequested = (state.otRequests || []).some(r => String(r.staff_id) === String(staffId) && normalizeDateKey(r.work_date) === dutyDate && String(r.reason || '').includes('ยืนยันอยู่เวร'));
+      if (!alreadyRequested) {
+        const chosenDuty = dutyCode || (duties[0]?.duty_code || '');
+        const autoHours = manualHours !== null ? manualHours : null;
+        const noteParts = [
+          isAdmin() ? `Admin บันทึกแทนโดย ${staffNick(currentStaffId())}` : 'สร้างจากส่วนที่ 1 ยืนยันอยู่เวร',
+          `เวลาเริ่ม ${startTime}`,
+          `เวลาสิ้นสุด ${endTime}`,
+          chosenDuty ? `ประเภทเวร ${DUTY_LABEL[chosenDuty] || chosenDuty}` : '',
+          autoHours !== null ? `จำนวนเวลา ${autoHours} ชั่วโมง` : '',
+          proxyText,
+          adminNote
+        ].filter(Boolean);
+        const otBase = { staff_id: staffId, work_date: dutyDate, start_time: startTime, end_time: endTime, reason: isAdmin() ? 'ยืนยันอยู่เวรโดย Admin' : 'ยืนยันอยู่เวรตามตาราง', note: noteParts.join(' | '), status: 'รออนุมัติ', lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: deviceInfo };
+        let ot = await sb.from('ot_requests').insert(otBase);
+        if (ot.error && /start_time|column|schema/i.test(ot.error.message || '')) {
+          const fallback = { ...otBase, note: `${otBase.note} | เวลาเริ่ม ${startTime}` };
+          delete fallback.start_time;
+          ot = await sb.from('ot_requests').insert(fallback);
+        }
+        if (ot.error) showToast(`ลงชื่อสำเร็จ แต่สร้างรายการ OT ไม่สำเร็จ: ${ot.error.message}`, { tone:'error' });
+      } else {
+        showToast('บันทึกลงชื่อแล้ว แต่มีรายการยืนยันอยู่เวรของวันนี้อยู่แล้ว จึงไม่สร้าง OT ซ้ำ');
+      }
+      await loadAllData(); renderPage();
+      showToast(isAdmin() ? 'Admin บันทึกการอยู่เวรแทนเจ้าหน้าที่แล้ว' : (proxyText ? 'ยืนยันวันอยู่เวรแทนเจ้าของเวรเดิมแล้ว' : 'ยืนยันวันอยู่เวรและส่งรายการ OT แล้ว'));
+    } catch (err) {
+      showToast(err.message || 'บันทึกการอยู่เวรไม่สำเร็จ', { tone:'error' });
+    } finally { setBusy(false); }
+  }
+  window.saveAttendanceV163 = saveAttendanceV163;
+
+  document.addEventListener('submit', function(e){
+    if (e.target && e.target.id === 'attendanceForm') {
+      e.preventDefault();
+      saveAttendanceV163(e.target);
+    }
+  }, true);
+
+  document.addEventListener('click', function(e){
+    const t = e.target && e.target.closest ? e.target.closest('[data-export-ot-excel]') : null;
+    if (t && !isAdmin()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showToast('Export Excel สรุป OT ใช้ได้เฉพาะ Admin เท่านั้น', { tone:'error' });
+    }
+  }, true);
+
+  removeAccountSettingsMenu();
+})();
