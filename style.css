@@ -1663,3 +1663,9 @@ body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
   .v160-schedule-grid .clean-staff-head,.v160-schedule-grid .clean-staff-cell{min-width:96px!important;width:96px!important;max-width:96px!important;}
   .v160-schedule-grid .clean-summary-head,.v160-schedule-grid .clean-summary-cell{left:96px!important;min-width:62px!important;width:62px!important;max-width:62px!important;}
 }
+
+/* V161 force first-login setup */
+.force-setup-shell{max-width:760px;margin:24px auto;}
+.force-setup-card{border:1px solid rgba(59,130,246,.22);box-shadow:0 16px 45px rgba(59,130,246,.12);}
+.compact-info{margin:12px 0 16px;}
+.nav-force-note{padding:12px;margin:8px;border-radius:14px;background:#fff7ed;color:#9a3412;font-size:.9rem;font-weight:700;line-height:1.4;}

@@ -5657,3 +5657,175 @@ function bindGlobalEvents() {
   }
   document.addEventListener('submit', function(e){ if (e.target && e.target.id === 'directAccountForm') { e.preventDefault(); saveDirectAccountV160(e.target); } }, true);
 })();
+
+/* =========================
+   V161 Admin-created Auth User + Force First Login Setup
+   ========================= */
+(function(){
+  const V161_DEFAULT_PREFIX = 'CNMI@';
+  const v161OriginalEnterApp = enterApp;
+  const v161OriginalRenderNav = renderNav;
+  const v161OriginalRenderPage = renderPage;
+
+  function v161DefaultPassword(employeeCode){
+    const code = String(employeeCode || '').trim();
+    if (!code) return '';
+    const mode = String(CFG.DEFAULT_PASSWORD_MODE || 'CNMI_PREFIX').toUpperCase();
+    if (mode === 'EMPLOYEE_CODE' && code.length >= 6) return code;
+    return `${V161_DEFAULT_PREFIX}${code}`;
+  }
+  window.v161DefaultPassword = v161DefaultPassword;
+
+  function v161IsFirstLoginProfile(){
+    const p = state.profile || {};
+    return p.is_first_login === true || p.must_change_password === true || p.force_password_change === true;
+  }
+  window.v161IsFirstLoginProfile = v161IsFirstLoginProfile;
+
+  function v161AccountSetupHtml(){
+    const p = state.profile || {};
+    const recommended = String(p.login_name || p.employee_code || '').trim().toLowerCase();
+    return `<div class="force-setup-shell">
+      <div class="card force-setup-card">
+        <div class="section-title"><div><h3>ตั้งค่า Username / Password ก่อนเริ่มใช้งาน</h3><p class="hint">บัญชีนี้เป็นการเข้าใช้งานครั้งแรกด้วยรหัสผ่านเริ่มต้น ระบบจึงบังคับให้เปลี่ยนรหัสผ่านก่อนเข้าเมนูอื่น</p></div></div>
+        <div class="profile-info-list compact-info"><div><span>ชื่อ</span><b>${escapeHtml(p.nickname || p.full_name || '-')}</b></div><div><span>Email</span><b>${escapeHtml(p.email || '-')}</b></div><div><span>รหัสพนักงาน</span><b>${escapeHtml(p.employee_code || '-')}</b></div></div>
+        <form id="v161ForceAccountForm" class="form-grid compact-form">
+          <label>Username ใหม่ <input name="login_name" value="${escapeHtml(recommended)}" placeholder="เช่น gift123 หรือรหัสพนักงาน" autocomplete="username" required></label>
+          <label>Password ใหม่ <input name="password" type="password" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="new-password" required></label>
+          <label>ยืนยัน Password ใหม่ <input name="password2" type="password" placeholder="กรอกซ้ำ" autocomplete="new-password" required></label>
+          <button class="primary-btn wide" type="submit">บันทึกและเริ่มใช้งาน</button>
+        </form>
+        <p class="hint">หลังบันทึกสำเร็จ ระบบจะปลดล็อกเมนูทั้งหมดอัตโนมัติ</p>
+      </div>
+    </div>`;
+  }
+
+  async function v161SaveForcedAccount(form){
+    const fd = new FormData(form);
+    const loginName = String(fd.get('login_name') || '').trim().toLowerCase();
+    const password = String(fd.get('password') || '');
+    const password2 = String(fd.get('password2') || '');
+    if (!loginName) return showToast('กรุณาตั้ง Username', { tone:'error' });
+    if (!/^[a-zA-Z0-9._-]{2,30}$/.test(loginName)) return showToast('Username ใช้ได้เฉพาะอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง 2–30 ตัว', { tone:'error' });
+    if (password.length < 6) return showToast('Password อย่างน้อย 6 ตัวอักษร', { tone:'error' });
+    if (password !== password2) return showToast('Password ไม่ตรงกัน', { tone:'error' });
+    setBusy(true, 'กำลังบันทึก Username / Password');
+    try {
+      let r = await sb.rpc('set_initial_login_name_v56', { p_email: state.profile.email, p_login_name: loginName });
+      if (r.error) r = await sb.rpc('set_initial_login_name_v44', { p_email: state.profile.email, p_login_name: loginName });
+      if (r.error) {
+        const direct = await sb.from('staff_profiles').update({ login_name: loginName }).eq('id', state.profile.id);
+        if (direct.error) throw r.error || direct.error;
+      }
+      const authUpdate = await sb.auth.updateUser({ password });
+      if (authUpdate.error) throw authUpdate.error;
+      const profileUpdate = await sb.from('staff_profiles').update({ is_first_login:false, must_change_password:false, force_password_change:false, first_login_completed_at:new Date().toISOString() }).eq('id', state.profile.id);
+      if (profileUpdate.error) {
+        console.warn('V161 first-login flag update failed; continuing after password change', profileUpdate.error);
+      }
+      await loadProfile();
+      await loadAllData();
+      renderNav();
+      renderPage();
+      showToast('ตั้งค่า Username / Password สำเร็จ');
+    } catch (err) {
+      showToast(err.message || 'บันทึกไม่สำเร็จ', { tone:'error' });
+    } finally { setBusy(false); }
+  }
+  window.v161SaveForcedAccount = v161SaveForcedAccount;
+
+  enterApp = async function enterAppV161(){
+    if (isPasswordSetupForced() || RECOVERY_INTENT || isPasswordRecoveryUrl()) {
+      showResetPasswordPanel(); setBusy(false); return;
+    }
+    setBusy(true, 'กำลังโหลดข้อมูลผู้ใช้');
+    try { await loadProfile(); }
+    catch (err) { console.warn('V161 loadProfile failed', err); showToast('โหลดข้อมูลผู้ใช้ไม่สำเร็จ กรุณากดรีเฟรชอีกครั้ง', { tone:'error' }); setBusy(false); return; }
+    if (!state.profile) { showToast('ไม่พบข้อมูลผู้ใช้ในระบบ กรุณาให้ Admin ตรวจผู้ใช้งานและสิทธิ์', { tone:'error' }); setBusy(false); return; }
+    if (state.profile.is_active === false) { await sb.auth.signOut(); showToast('บัญชีนี้ถูกปิดใช้งาน กรุณาให้ Admin ตรวจผู้ใช้งานและสิทธิ์', { tone:'error' }); setBusy(false); return; }
+    if (v161IsFirstLoginProfile()) {
+      $('authView').classList.add('hidden');
+      $('appView').classList.remove('hidden');
+      const nav = $('mainNav'); if (nav) nav.innerHTML = `<div class="nav-force-note">ต้องตั้งค่า Username / Password ก่อน</div>`;
+      const mini = $('userMini'); if (mini) mini.innerHTML = `<b>${escapeHtml(state.profile.nickname || state.profile.full_name || '-')}</b><small>First Login</small>`;
+      const title = $('pageTitle'); if (title) title.textContent = 'ตั้งค่า Username / Password';
+      const subtitle = $('pageSubtitle'); if (subtitle) subtitle.textContent = 'เข้าใช้งานครั้งแรก';
+      const content = $('pageContent'); if (content) content.innerHTML = v161AccountSetupHtml();
+      setBusy(false); return;
+    }
+    await v161OriginalEnterApp();
+  };
+  window.enterApp = enterApp;
+
+  renderNav = function renderNavV161(){
+    if (v161IsFirstLoginProfile()) {
+      const nav = $('mainNav'); if (nav) nav.innerHTML = `<div class="nav-force-note">ต้องตั้งค่า Username / Password ก่อน</div>`;
+      return;
+    }
+    return v161OriginalRenderNav();
+  };
+  window.renderNav = renderNav;
+
+  renderPage = function renderPageV161(){
+    if (v161IsFirstLoginProfile()) {
+      const title = $('pageTitle'); if (title) title.textContent = 'ตั้งค่า Username / Password';
+      const subtitle = $('pageSubtitle'); if (subtitle) subtitle.textContent = 'เข้าใช้งานครั้งแรก';
+      const content = $('pageContent'); if (content) content.innerHTML = v161AccountSetupHtml();
+      return;
+    }
+    return v161OriginalRenderPage();
+  };
+  window.renderPage = renderPage;
+
+  saveNewStaff = async function saveNewStaffV161(form){
+    if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้น', { tone:'error' });
+    const fd = new FormData(form);
+    const email = String(fd.get('email') || '').trim().toLowerCase();
+    const employeeCode = String(fd.get('employee_code') || '').trim();
+    if (!requireMahidolEmail(email)) return showToast('ต้องใช้อีเมล @mahidol.ac.th', { tone:'error' });
+    if (!employeeCode) return showToast('กรุณากรอกรหัสพนักงาน เพื่อใช้สร้างรหัสผ่านเริ่มต้น', { tone:'error' });
+    const defaultPassword = v161DefaultPassword(employeeCode);
+    const row = {
+      nickname: String(fd.get('nickname') || '').trim(),
+      full_name: String(fd.get('full_name') || '').trim(),
+      email,
+      employee_code: employeeCode,
+      phone: String(fd.get('phone') || '').trim() || null,
+      login_name: String(fd.get('login_name') || '').trim().toLowerCase() || null,
+      staff_color: fd.get('staff_color') || defaultStaffColor(fd.get('nickname')),
+      staff_type: fd.get('staff_type') || null,
+      position: fd.get('position') || null,
+      role: fd.get('role') || 'staff',
+      is_active: true,
+      is_first_login: true,
+      must_change_password: true,
+      is_long_term_leave: false,
+      roster_enabled: true,
+      daily_position_enabled: false,
+      position_training_status: 'น้องใหม่ / ยังไม่จัดอัตโนมัติ'
+    };
+    if (!CFG.APP_SCRIPT_URL) {
+      return showToast('ยังไม่ได้ตั้งค่า APP_SCRIPT_URL จึงสร้าง Supabase Auth User จากหน้าเว็บไม่ได้อย่างปลอดภัย กรุณาติดตั้ง Apps Script V161 ก่อน', { tone:'error' });
+    }
+    setBusy(true, 'กำลังสร้าง Staff Profile และ Supabase Auth User');
+    try {
+      const res = await fetch(CFG.APP_SCRIPT_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'adminCreateStaffUser', staff: row, defaultPassword, actorEmail: state.profile?.email || null, accessToken: state.session?.access_token || null })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.message || 'สร้างบัญชีไม่สำเร็จ');
+      form.reset();
+      await loadAllData(); renderPage();
+      showToast(`เพิ่มผู้ใช้งานและสร้าง Auth User แล้ว รหัสผ่านเริ่มต้น: ${defaultPassword}`);
+    } catch (err) {
+      showToast(err.message || 'สร้างบัญชีไม่สำเร็จ', { tone:'error' });
+    } finally { setBusy(false); }
+  };
+  window.saveNewStaff = saveNewStaff;
+
+  document.addEventListener('submit', function(e){
+    if (e.target && e.target.id === 'v161ForceAccountForm') { e.preventDefault(); v161SaveForcedAccount(e.target); }
+  }, true);
+})();
