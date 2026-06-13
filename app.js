@@ -5712,10 +5712,10 @@ function bindGlobalEvents() {
   const v161OriginalRenderPage = renderPage;
 
   function v161DefaultPassword(employeeCode){
+    // V165: รหัสผ่านเริ่มต้นต้องเป็น CNMI@ + รหัสพนักงานเสมอ
+    // ไม่อิง CFG.DEFAULT_PASSWORD_MODE แล้ว เพราะคอนฟิกเก่าอาจทำให้ตั้งเป็นรหัสพนักงานล้วน
     const code = String(employeeCode || '').trim();
     if (!code) return '';
-    const mode = String(CFG.DEFAULT_PASSWORD_MODE || 'CNMI_PREFIX').toUpperCase();
-    if (mode === 'EMPLOYEE_CODE' && code.length >= 6) return code;
     return `${V161_DEFAULT_PREFIX}${code}`;
   }
   window.v161DefaultPassword = v161DefaultPassword;
@@ -6664,4 +6664,158 @@ function bindGlobalEvents() {
   }, true);
 
   removeAccountSettingsMenu();
+})();
+
+
+/* =========================
+   V165 Default Password Hardening + Responsive Account/OT Layout
+   ========================= */
+(function(){
+  'use strict';
+  const V165_DEFAULT_PREFIX = 'CNMI@';
+
+  function esc165(v){
+    try { return escapeHtml(v == null ? '' : String(v)); }
+    catch (_) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  }
+  function normalizeEmployeeCodeV165(v){ return String(v || '').trim(); }
+  function defaultPasswordV165(employeeCode){
+    const code = normalizeEmployeeCodeV165(employeeCode);
+    return code ? `${V165_DEFAULT_PREFIX}${code}` : '';
+  }
+  window.v161DefaultPassword = window.v165DefaultPassword = defaultPasswordV165;
+
+  function normalizePasswordForLoginV165(raw){
+    const original = String(raw || '');
+    const trimmed = original.trim();
+    if (/^cnmi@/i.test(trimmed)) return V165_DEFAULT_PREFIX + trimmed.slice(trimmed.indexOf('@') + 1).trim();
+    return original;
+  }
+  window.normalizePasswordForLoginV165 = normalizePasswordForLoginV165;
+
+  const oldBind = window.bindGlobalEvents || (typeof bindGlobalEvents === 'function' ? bindGlobalEvents : null);
+  if (oldBind) {
+    window.bindGlobalEvents = bindGlobalEvents = function bindGlobalEventsV165(){
+      oldBind.apply(this, arguments);
+      const form = document.getElementById('loginForm');
+      if (form && form.dataset.v165LoginBound !== '1') {
+        form.dataset.v165LoginBound = '1';
+        form.addEventListener('submit', async function(e){
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const loginInput = document.getElementById('loginEmail');
+          const passwordInput = document.getElementById('loginPassword');
+          const loginId = String(loginInput?.value || '').trim();
+          const password = normalizePasswordForLoginV165(passwordInput?.value || '');
+          setBusy(true, 'กำลังเข้าสู่ระบบ');
+          let email = '';
+          try { email = await resolveLoginIdentifier(loginId); }
+          catch (err) { setBusy(false); return showToast(err.message || 'ไม่พบชื่อผู้ใช้', { tone:'error' }); }
+          const { error } = await sb.auth.signInWithPassword({ email, password });
+          setBusy(false);
+          if (error) {
+            const msg = String(error.message || '');
+            if (msg.toLowerCase().includes('invalid login credentials')) {
+              return showToast('อีเมล/Username หรือรหัสผ่านไม่ถูกต้อง หากเป็นผู้ใช้ใหม่ให้ใช้รหัสผ่านเริ่มต้น CNMI@ ตามด้วยรหัสพนักงาน เช่น CNMI@123456', { tone:'error' });
+            }
+            return showToast(msg, { tone:'error' });
+          }
+        }, true);
+      }
+    };
+  }
+
+  const oldRenderProfile = window.renderMyProfilePage || (typeof renderMyProfilePage === 'function' ? renderMyProfilePage : null);
+  if (oldRenderProfile) {
+    window.renderMyProfilePage = renderMyProfilePage = function renderMyProfilePageV165(){
+      const p = state.profile || {};
+      const normalize = (typeof normalizeRequest === 'function') ? normalizeRequest : (x => x);
+      const belongs = (typeof requestIsMine === 'function') ? requestIsMine : (typeof profileRequestBelongsToMe === 'function' ? profileRequestBelongsToMe : (() => true));
+      const reqs = (state.profileChangeRequests || []).map(normalize).filter(belongs).slice(0, 20);
+      return `<div class="grid grid-2 profile-page-grid v57-profile-page v160-profile-page v163-profile-page v165-profile-page" id="myProfilePage">
+        <div class="card profile-card-readable">
+          <div class="section-title"><div><h3>ข้อมูลส่วนตัว</h3><p class="hint">แสดงข้อมูลจากตารางผู้ใช้งานจริงในระบบ</p></div></div>
+          <div class="profile-info-list v165-profile-info">
+            <div><span>ชื่อเล่น</span><b>${esc165(p.nickname || '-')}</b></div>
+            <div><span>ชื่อ-สกุล</span><b>${esc165(p.full_name || '-')}</b></div>
+            <div><span>รหัสพนักงาน</span><b>${esc165(p.employee_code || '-')}</b></div>
+            <div><span>เบอร์โทร</span><b>${esc165(p.phone || '-')}</b></div>
+            <div><span>Email</span><b>${esc165(p.email || '-')}</b></div>
+            <div><span>Username</span><b>${esc165(p.login_name || '-')}</b></div>
+            <div><span>ประเภทเจ้าหน้าที่</span><b>${esc165(p.staff_type || '-')}</b></div>
+            <div><span>ตำแหน่ง/สิทธิ์</span><b>${esc165(p.position || '-')} / ${esc165(p.role || '-')}</b></div>
+          </div>
+        </div>
+        <div class="card account-settings-card v165-account-settings-card">
+          <div class="section-title"><div><h3>ตั้งค่าบัญชี</h3><p class="hint">รวมไว้ในหน้าเดียวกับข้อมูลส่วนตัว เพื่อลดเมนูซ้ำซ้อน</p></div></div>
+          <form id="directAccountForm" class="form-grid compact-form account-form-grid v165-account-form">
+            <label>Username ใหม่ <input name="login_name" value="${esc165(p.login_name || '')}" placeholder="เช่น gift123 หรือรหัสพนักงาน" autocomplete="username"><span class="hint">ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีดกลาง หรือขีดล่าง</span></label>
+            <label>Password ใหม่ <input name="password" type="password" placeholder="เว้นว่างถ้าไม่เปลี่ยน" autocomplete="new-password"></label>
+            <label>ยืนยัน Password ใหม่ <input name="password2" type="password" placeholder="กรอกซ้ำ" autocomplete="new-password"></label>
+            <button class="primary-btn wide" type="submit">บันทึก Username / Password</button>
+          </form>
+        </div>
+        <div class="card v165-request-card">
+          <div class="section-title"><div><h3>ขอแก้ไขข้อมูลอื่น</h3><p class="hint">ข้อมูลที่ต้องให้ Admin ตรวจ เช่น เบอร์โทร ชื่อเล่น ชื่อ-สกุล</p></div></div>
+          <form id="profileChangeForm" class="form-grid compact-form v165-profile-change-form">
+            <div class="form-grid two-cols"><label>ต้องการแก้ไข <select name="field_name" required><option value="phone">เบอร์โทร</option><option value="nickname">ชื่อเล่น</option><option value="full_name">ชื่อ-สกุล</option></select></label><label>ข้อมูลใหม่ <input name="new_value" required placeholder="กรอกข้อมูลใหม่"></label></div>
+            <label>เหตุผล/หมายเหตุ <textarea name="note" placeholder="เช่น เปลี่ยนเบอร์โทร / สะกดชื่อผิด"></textarea></label>
+            <button class="primary-btn full-btn" type="submit">ส่งคำขอให้ Admin อนุมัติ</button>
+          </form>
+        </div>
+        <div class="card v165-request-list-card">
+          <div class="section-title"><h3>คำขอล่าสุดของฉัน</h3><button class="ghost-btn" type="button" onclick="loadProfileChangeRequests().then(renderPage)">รีเฟรช</button></div>
+          ${reqs.length ? `<div class="mobile-cards always-cards">${reqs.map(r => (typeof requestCard === 'function' ? requestCard(r, false, false) : `<div class="mobile-card"><b>${esc165(profileFieldLabel(r.field_name || '-'))}</b></div>`)).join('')}</div>` : empty('ยังไม่มีคำขอ')}
+        </div>
+      </div>`;
+    };
+  }
+
+  window.renderOtPage = renderOtPage = function renderOtPageV165(){
+    const today = todayStr();
+    const proxyOptions = selfPaidDutyProxyOptions(today);
+    const myDutyToday = rosterDutiesFor(currentStaffId(), today).length > 0;
+    const myLoggedToday = alreadyAttendance(currentStaffId(), today);
+    const mine = (state.otRequests || []).filter(x => String(x.staff_id) === String(currentStaffId()));
+    const rows = isAdmin() ? (state.otRequests || []) : mine;
+    const proxyBox = proxyOptions.length ? `<div class="notice soft-notice compact"><b>วันนี้มีข้อตกลงจ่ายกันเองที่คุณเป็นคนมาทำแทน</b><br>${proxyOptions.map(x => `ลงชื่อแทนเวรของ ${staffPill(x.assignment.staff_id)} • ${esc165(DUTY_LABEL[x.assignment.duty_code] || x.assignment.duty_code)}`).join('<br>')}</div>` : '';
+    const staffMode = isAdmin() ? `<div class="admin-checkin-fields v165-admin-checkin-fields"><label>เลือกชื่อเจ้าหน้าที่ <select name="staff_id" required>${activeStaffOptions(currentStaffId())}</select></label><label>เลือกประเภทเวร <select name="duty_code">${dutyTypeOptions()}</select></label><label>จำนวนเวลา OT (ชั่วโมง) <input name="manual_hours" type="number" min="0" max="24" step="0.5" placeholder="เช่น 8 / 16 / 24"></label><label>หมายเหตุ Admin <input name="admin_note" placeholder="เช่น ลงย้อนหลังแทนน้อง"></label></div>` : '';
+    return `<div class="grid grid-2 ot-page v163-ot-page v165-ot-page">
+      <div class="card ot-card">
+        <h3>ส่วนที่ 1 ยืนยันวันอยู่เวร</h3>
+        <p class="muted">${isAdmin() ? 'Admin สามารถลงเวลาแทนเจ้าหน้าที่ และระบุประเภทเวร/จำนวนเวลาได้' : (myDutyToday ? 'วันนี้มีชื่อคุณในตารางเวร' : proxyOptions.length ? 'วันนี้คุณเป็นผู้มาทำเวรแทนตามข้อตกลงกันเอง / จ่ายกันเอง' : 'เลือกวันที่และเวลาจริงที่ทำงาน หากไม่พบชื่อในตาราง ระบบจะแจ้งให้ตรวจสอบ')}</p>
+        ${myLoggedToday ? `<div class="notice soft-notice compact">วันนี้มีบันทึกลงชื่ออยู่เวรแล้ว</div>` : ''}
+        ${proxyBox}
+        <form id="attendanceForm" class="form-grid compact-form attendance-form v165-attendance-form">
+          <div class="v165-checkin-fields">
+            <label>วันที่อยู่เวร <input name="duty_date" type="date" value="${esc165(today)}" required></label>
+            <label>เวลาเริ่มทำงาน <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label>
+            <label>เวลาสิ้นสุด <input name="end_time" type="time" value="${esc165(timeNowShort())}" required></label>
+          </div>
+          ${staffMode}
+          <button class="primary-btn wide" type="submit">ยืนยันรับ OT / อยู่เวร</button>
+        </form>
+        <p class="hint gps-help compact">ใช้ GPS เพื่อตรวจว่าอยู่ในพื้นที่โรงพยาบาลก่อนยืนยัน และรองรับการบันทึกย้อนหลังตามเวลาจริง</p>
+      </div>
+      <div class="card ot-card">
+        <h3>ส่วนที่ 2 ขอ OT เพิ่ม / เวรปั่นเลือด</h3>
+        <p class="hint compact">ช4 และชั่วโมงเพิ่มของ ช3A/ช3B จะยังไม่คิดอัตโนมัติ ให้บันทึกเวลาจริง แล้ว Admin เทียบ LIS ก่อนอนุมัติ</p>
+        <form id="otForm" class="form-grid v165-ot-extra-form">
+          <label>วันที่ <input name="work_date" type="date" value="${esc165(today)}" required></label>
+          <label>ตั้งแต่เวลา (Start time) <input name="start_time" type="time" value="${pad(otStartHourForDate(today))}:00" required></label>
+          <label>ถึงเวลา (End time) <input name="end_time" type="time" required></label>
+          <label>เหตุผล <select name="reason">${OT_REASONS.map(r => `<option>${esc165(r)}</option>`).join('')}</select></label>
+          <label class="wide">รายละเอียด <input name="note" placeholder="เช่น ปั่นเลือดถึง 18:20 / รอเทียบ LIS"></label>
+          <button class="primary-btn wide" type="submit">ยืนยันขอ OT เพิ่ม</button>
+        </form>
+      </div>
+      <div class="card wide-card" style="grid-column:1/-1;">
+        <div class="section-title"><h3>${isAdmin() ? 'ส่วนที่ 3 อนุมัติ OT' : 'รายการ OT ของฉัน'}</h3>${isAdmin() ? '<button class="ghost-btn" data-export-ot-excel>Export Excel สรุปเดือนนี้</button>' : ''}</div>
+        ${renderOtTable(rows)}
+      </div>
+      <div class="card" style="grid-column:1/-1;">
+        <h3>ส่วนที่ 4 สรุป OT รายเดือน</h3><p class="hint">สรุปเฉพาะรายการที่อนุมัติแล้ว</p>${renderOtSummary()}
+      </div>
+    </div>`;
+  };
 })();

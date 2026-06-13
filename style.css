@@ -1724,3 +1724,86 @@ body.cnmi-sidebar-hidden .page-content{max-width:none!important;}
   .v163-ot-page .form-grid.two-cols,
   .v163-ot-page .admin-checkin-fields { grid-template-columns: 1fr; }
 }
+
+
+/* V165 Responsive fixes: OT attendance form + profile/account spacing */
+.v165-ot-page .ot-card { min-width: 0; }
+.v165-attendance-form {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+}
+.v165-checkin-fields,
+.v165-admin-checkin-fields {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  gap: 14px !important;
+  width: 100%;
+  min-width: 0;
+}
+.v165-admin-checkin-fields {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(128, 202, 255, 0.10);
+  border-radius: 16px;
+  padding: 14px;
+}
+.v165-attendance-form label,
+.v165-ot-extra-form label,
+.v165-account-form label,
+.v165-profile-change-form label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  align-content: start;
+  font-weight: 800;
+}
+.v165-attendance-form input,
+.v165-attendance-form select,
+.v165-ot-extra-form input,
+.v165-ot-extra-form select,
+.v165-account-form input,
+.v165-profile-change-form input,
+.v165-profile-change-form select,
+.v165-profile-change-form textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.v165-attendance-form .primary-btn { justify-self: start; min-width: min(100%, 280px); }
+.v165-profile-page { align-items: start; }
+.v165-profile-page .card { padding: 22px; }
+.v165-profile-info { gap: 2px; margin-top: 16px; }
+.v165-profile-info > div {
+  grid-template-columns: minmax(130px, 170px) minmax(0, 1fr);
+  gap: 18px;
+  padding: 13px 0;
+}
+.v165-account-settings-card .section-title,
+.v165-request-card .section-title { margin-bottom: 18px; }
+.v165-account-form,
+.v165-profile-change-form {
+  grid-template-columns: 1fr !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+}
+.v165-account-form .hint { margin-top: 0; line-height: 1.45; }
+.v165-profile-change-form .two-cols {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  gap: 14px !important;
+}
+@media (min-width: 980px) {
+  .v165-account-form { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .v165-account-form label:first-child { grid-column: 1 / -1; }
+  .v165-account-form .wide { grid-column: 1 / -1; justify-self: start; min-width: 280px; }
+}
+@media (max-width: 820px) {
+  .v165-checkin-fields,
+  .v165-admin-checkin-fields { grid-template-columns: 1fr !important; }
+  .v165-attendance-form .primary-btn { width: 100%; }
+  .v165-profile-page .card { padding: 18px; }
+  .v165-profile-info > div { grid-template-columns: 105px minmax(0, 1fr); gap: 12px; }
+}
+@media (max-width: 520px) {
+  .v165-profile-info > div { grid-template-columns: 1fr; gap: 5px; }
+}
