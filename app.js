@@ -6938,3 +6938,161 @@ function bindGlobalEvents() {
     };
   }
 })();
+
+/* =========================
+   V167 Global Role Switcher (View As...) for Admin
+   ========================= */
+(function(){
+  'use strict';
+  const STORAGE_PREFIX = 'cnmi_view_as_mode_';
+  const STAFF_PAGE_AFTER_ADMIN_MODE = 'ot';
+
+  function esc167(v){
+    try { return escapeHtml(v == null ? '' : String(v)); }
+    catch (_) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  }
+  function storage167(){
+    try { return window.localStorage || null; } catch (_) { return null; }
+  }
+  function isActualAdminV167(){
+    return String(state?.profile?.role || '').toLowerCase() === 'admin';
+  }
+  function userKeyV167(){
+    const id = state?.session?.user?.id || state?.profile?.user_id || state?.profile?.id || state?.profile?.email || 'guest';
+    return `${STORAGE_PREFIX}${id}`;
+  }
+  function normalizeModeV167(mode){
+    return String(mode || '').toLowerCase() === 'staff' ? 'staff' : 'admin';
+  }
+  function readModeV167(){
+    if (!isActualAdminV167()) return 'staff';
+    const saved = storage167()?.getItem(userKeyV167());
+    return normalizeModeV167(saved || state.viewAsMode || 'admin');
+  }
+  function writeModeV167(mode){
+    if (!isActualAdminV167()) return;
+    const normalized = normalizeModeV167(mode);
+    state.viewAsMode = normalized;
+    try { storage167()?.setItem(userKeyV167(), normalized); } catch (_) {}
+  }
+  function clearModeV167(){
+    try { storage167()?.removeItem(userKeyV167()); } catch (_) {}
+    state.viewAsMode = 'admin';
+  }
+  function currentModeV167(){
+    const mode = readModeV167();
+    state.viewAsMode = mode;
+    return mode;
+  }
+  function isAdminPageV167(pageId){
+    return !!(NAV_ITEMS || []).find(item => item.id === pageId && item.group === 'admin');
+  }
+  function closeSwitcherV167(){
+    document.querySelectorAll('[data-view-as-menu]').forEach(el => el.classList.add('hidden'));
+  }
+
+  window.isActualAdmin = window.isActualAdminV167 = isActualAdminV167;
+  window.getViewAsMode = window.getViewAsModeV167 = currentModeV167;
+  window.clearViewAsMode = window.clearViewAsModeV167 = clearModeV167;
+
+  // Override global permission helper: actual Admin + selected view mode = Admin.
+  window.isAdmin = isAdmin = function isAdminV167(){
+    return isActualAdminV167() && currentModeV167() === 'admin';
+  };
+
+  const previousRenderNavV167 = window.renderNav || (typeof renderNav === 'function' ? renderNav : null);
+  window.renderNav = renderNav = function renderNavV167(){
+    if (previousRenderNavV167) previousRenderNavV167.apply(this, arguments);
+    const mini = document.getElementById('userMini');
+    if (!mini || !state.profile) return;
+    if (typeof v161IsFirstLoginProfile === 'function' && v161IsFirstLoginProfile()) return;
+
+    const roleText = `${state.profile.position || state.profile.role || '-'} • ${state.profile.role || '-'}`;
+    if (!isActualAdminV167()) {
+      mini.innerHTML = `<div class="mini-profile">${staffPill(state.profile)}<br><span>${esc167(roleText)}</span></div>`;
+      return;
+    }
+
+    const mode = currentModeV167();
+    const isStaffMode = mode === 'staff';
+    mini.innerHTML = `<div class="view-as-wrap">
+      <button class="view-as-toggle" type="button" data-view-as-toggle aria-expanded="false" title="คลิกเพื่อสลับโหมดการใช้งาน">
+        <span class="view-as-user">${staffPill(state.profile)}<small>${esc167(roleText)}</small></span>
+        <span class="view-as-badge ${isStaffMode ? 'staff' : 'admin'}">${isStaffMode ? 'Staff mode' : 'Admin mode'}</span>
+        <span class="view-as-chevron">▾</span>
+      </button>
+      <div class="view-as-menu hidden" data-view-as-menu>
+        <button type="button" class="view-as-option ${isStaffMode ? 'active' : ''}" data-view-as-mode="staff"><b>🟢 โหมดผู้ใช้งานทั่วไป</b><small>ซ่อนเมนู Admin และใช้ฟอร์มแบบ Staff</small></button>
+        <button type="button" class="view-as-option ${!isStaffMode ? 'active' : ''}" data-view-as-mode="admin"><b>🔴 โหมดผู้ดูแลระบบ</b><small>เปิดเมนูและสิทธิ์ Admin ทั้งหมด</small></button>
+      </div>
+    </div>`;
+  };
+
+  const previousRenderPageV167 = window.renderPage || (typeof renderPage === 'function' ? renderPage : null);
+  window.renderPage = renderPage = function renderPageV167(){
+    if (!isAdmin() && isAdminPageV167(state.page)) state.page = STAFF_PAGE_AFTER_ADMIN_MODE;
+    if (previousRenderPageV167) return previousRenderPageV167.apply(this, arguments);
+  };
+
+  window.setViewAsMode = window.setViewAsModeV167 = async function setViewAsModeV167(mode){
+    if (!isActualAdminV167()) return showToast('เฉพาะ Admin เท่านั้นที่สลับโหมดได้', { tone:'error' });
+    const next = normalizeModeV167(mode);
+    const prev = currentModeV167();
+    writeModeV167(next);
+    closeSwitcherV167();
+    if (next === 'staff' && isAdminPageV167(state.page)) state.page = STAFF_PAGE_AFTER_ADMIN_MODE;
+    setBusy(true, next === 'admin' ? 'กำลังเปิดโหมด Admin' : 'กำลังเปิดโหมด Staff');
+    try {
+      // Switching back to Admin may need admin-only rows that were not loaded while viewing as Staff.
+      if (next === 'admin' && prev !== 'admin') {
+        await loadAllData();
+        if (typeof loadProfileChangeRequests === 'function') await loadProfileChangeRequests();
+      }
+      renderPage();
+      showToast(next === 'admin' ? 'เปิดโหมดผู้ดูแลระบบแล้ว' : 'เปิดโหมดผู้ใช้งานทั่วไปแล้ว');
+    } catch (err) {
+      console.warn('V167 role switch reload failed', err);
+      renderPage();
+      showToast('สลับโหมดแล้ว แต่โหลดข้อมูลบางส่วนไม่สำเร็จ กรุณากดรีเฟรช', { tone:'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  document.addEventListener('click', function(e){
+    const logoutBtn = e.target && e.target.closest ? e.target.closest('#logoutBtn') : null;
+    if (logoutBtn) {
+      clearModeV167();
+      return;
+    }
+
+    const toggle = e.target && e.target.closest ? e.target.closest('[data-view-as-toggle]') : null;
+    if (toggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isActualAdminV167()) return;
+      const wrap = toggle.closest('.view-as-wrap');
+      const menu = wrap ? wrap.querySelector('[data-view-as-menu]') : null;
+      const willOpen = menu?.classList.contains('hidden');
+      closeSwitcherV167();
+      if (menu && willOpen) {
+        menu.classList.remove('hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+      }
+      return;
+    }
+
+    const option = e.target && e.target.closest ? e.target.closest('[data-view-as-mode]') : null;
+    if (option) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.setViewAsModeV167(option.dataset.viewAsMode);
+      return;
+    }
+
+    if (!e.target.closest || !e.target.closest('.view-as-wrap')) closeSwitcherV167();
+  }, true);
+
+  // When auth signs out without the visible button path, avoid carrying Staff mode into a fresh login.
+  document.addEventListener('cnmi:force-clear-view-mode', clearModeV167);
+})();
