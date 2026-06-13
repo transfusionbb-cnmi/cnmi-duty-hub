@@ -6575,28 +6575,35 @@ function bindGlobalEvents() {
     const startTime = String(fd.get('start_time') || '').trim();
     const endTime = String(fd.get('end_time') || '').trim();
     let staffId = isAdmin() ? String(fd.get('staff_id') || '') : String(currentStaffId() || '');
-    const dutyCode = String(fd.get('duty_code') || '').trim();
+    const dutyCodeFromForm = String(fd.get('duty_code') || '').trim();
     const manualHoursRaw = String(fd.get('manual_hours') || '').trim();
     const manualHours = manualHoursRaw === '' ? null : Number(manualHoursRaw);
     const adminNote = String(fd.get('admin_note') || '').trim();
+
     if (!dutyDate) return showToast('กรุณาเลือกวันที่อยู่เวร', { tone:'error' });
     if (!endDate) return showToast('กรุณาเลือกวันที่สิ้นสุด', { tone:'error' });
     if (!startTime || !endTime) return showToast('กรุณาระบุเวลาเริ่มทำงานและเวลาสิ้นสุด', { tone:'error' });
     if (!staffId) return showToast('กรุณาเลือกเจ้าหน้าที่', { tone:'error' });
-    const startDateTime = new Date(`${dutyDate}T${startTime.length === 5 ? `${startTime}:00` : startTime}`);
-    const endDateTime = new Date(`${endDate}T${endTime.length === 5 ? `${endTime}:00` : endTime}`);
+
+    const normalizeTime = (t) => String(t || '').trim().length === 5 ? `${String(t).trim()}:00` : String(t || '').trim();
+    const startDateTime = new Date(`${dutyDate}T${normalizeTime(startTime)}`);
+    const endDateTime = new Date(`${endDate}T${normalizeTime(endTime)}`);
     if (!Number.isFinite(startDateTime.getTime()) || !Number.isFinite(endDateTime.getTime())) return showToast('รูปแบบวันที่/เวลาไม่ถูกต้อง', { tone:'error' });
     if (endDateTime <= startDateTime) return showToast('วันที่/เวลาสิ้นสุดต้องมากกว่าจุดเริ่มต้น', { tone:'error' });
+
     const calculatedHours = Math.round(((endDateTime - startDateTime) / 36e5) * 10) / 10;
+    if (!Number.isFinite(calculatedHours) || calculatedHours <= 0) return showToast('คำนวณชั่วโมงอยู่เวรไม่ได้ กรุณาตรวจวันที่/เวลาอีกครั้ง', { tone:'error' });
+    if (calculatedHours > 48) return showToast('ช่วงเวลาที่บันทึกยาวเกิน 48 ชั่วโมง กรุณาตรวจวันที่/เวลาอีกครั้ง', { tone:'error' });
     if (manualHours !== null && (!Number.isFinite(manualHours) || manualHours < 0 || manualHours > 24)) return showToast('จำนวนเวลา OT ต้องอยู่ระหว่าง 0–24 ชั่วโมง', { tone:'error' });
 
-    const duties = rosterDutiesFor(staffId, dutyDate);
+    let duties = rosterDutiesFor(staffId, dutyDate);
     let proxyText = '';
     if (!isAdmin()) {
       if (!duties.length) {
         const proxy = selfPaidDutyProxyOptions(dutyDate)[0];
         if (proxy?.assignment?.staff_id) {
           staffId = proxy.assignment.staff_id;
+          duties = rosterDutiesFor(staffId, dutyDate);
           proxyText = `ลงชื่อแทนโดย ${staffNick(currentStaffId())} จากข้อตกลงจ่ายกันเอง request:${proxy.request.id}`;
         } else {
           return showToast('ยังไม่พบชื่อคุณในตารางเวรของวันที่เลือก กรุณาให้ Admin ตรวจตารางก่อน', { tone:'error' });
@@ -6607,52 +6614,133 @@ function bindGlobalEvents() {
     const pos = await getGps();
     if (!pos.ok) return showGpsHelp(pos.message);
     if (!isInsideGeofence(pos) && CFG.GEOFENCE?.enabled) return showGpsHelp('ไม่ได้อยู่ในพื้นที่โรงพยาบาล');
-    const checkInDate = startDateTime;
-    const deviceInfo = [navigator.userAgent, `V170 start ${dutyDate} ${startTime}`, `end ${endDate} ${endTime}`, proxyText, isAdmin() ? `admin:${staffNick(currentStaffId())}` : ''].filter(Boolean).join(' | ').slice(0, 250);
+
+    const chosenDuty = dutyCodeFromForm || (duties[0]?.duty_code || '');
+    const deviceInfo = [
+      navigator.userAgent,
+      `V173 cross-day attendance`,
+      `start ${dutyDate} ${startTime}`,
+      `end ${endDate} ${endTime}`,
+      proxyText,
+      isAdmin() ? `admin:${staffNick(currentStaffId())}` : ''
+    ].filter(Boolean).join(' | ').slice(0, 250);
+
+    const attendancePayload = {
+      staff_id: staffId,
+      duty_date: dutyDate,
+      check_in_at: startDateTime.toISOString(),
+      lat: pos.lat,
+      lng: pos.lng,
+      accuracy: pos.accuracy,
+      device: deviceInfo
+    };
+
+    const noteParts = [
+      isAdmin() ? `Admin บันทึกแทนโดย ${staffNick(currentStaffId())}` : 'สร้างจากส่วนที่ 1 ยืนยันอยู่เวร',
+      `เวลาเริ่ม ${startTime}`,
+      `วันที่สิ้นสุด ${endDate}`,
+      `เวลาสิ้นสุด ${endTime}`,
+      `ชั่วโมงคำนวณ ${calculatedHours} ชั่วโมง`,
+      chosenDuty ? `ประเภทเวร ${DUTY_LABEL[chosenDuty] || chosenDuty}` : '',
+      manualHours !== null ? `จำนวนเวลา ${manualHours} ชั่วโมง` : '',
+      proxyText,
+      adminNote
+    ].filter(Boolean);
+
+    const otBase = {
+      staff_id: staffId,
+      work_date: dutyDate,
+      end_date: endDate,
+      start_time: startTime,
+      end_time: endTime,
+      reason: isAdmin() ? 'ยืนยันอยู่เวรโดย Admin' : 'ยืนยันอยู่เวรตามตาราง',
+      note: noteParts.join(' | '),
+      status: 'รออนุมัติ',
+      lat: pos.lat,
+      lng: pos.lng,
+      accuracy: pos.accuracy,
+      device: deviceInfo
+    };
+
+    const isSchemaColumnError = (err) => /end_date|start_time|column|schema|cache/i.test(err?.message || '');
+    const withFallbackNote = (payload, extra) => ({ ...payload, note: [payload.note, extra].filter(Boolean).join(' | ') });
+    async function writeOtRow(payload, existingId){
+      const attempts = [];
+      attempts.push({ ...payload });
+      const noEndDate = withFallbackNote({ ...payload }, `วันที่สิ้นสุด ${payload.end_date}`);
+      delete noEndDate.end_date;
+      attempts.push(noEndDate);
+      const noStartOrEndDate = withFallbackNote({ ...payload }, `เวลาเริ่ม ${payload.start_time} | วันที่สิ้นสุด ${payload.end_date}`);
+      delete noStartOrEndDate.start_time;
+      delete noStartOrEndDate.end_date;
+      attempts.push(noStartOrEndDate);
+
+      let lastError = null;
+      for (const attempt of attempts) {
+        const res = existingId
+          ? await sb.from('ot_requests').update(attempt).eq('id', existingId)
+          : await sb.from('ot_requests').insert(attempt);
+        if (!res.error) return res;
+        lastError = res.error;
+        if (!isSchemaColumnError(res.error)) break;
+      }
+      throw new Error(`สร้าง/อัปเดตรายการ OT ไม่สำเร็จ: ${lastError?.message || 'ไม่ทราบสาเหตุ'}`);
+    }
 
     setBusy(true, 'กำลังบันทึกการอยู่เวร');
     try {
-      const att = await sb.from('attendance_logs').insert({ staff_id: staffId, duty_date: dutyDate, check_in_at: Number.isFinite(checkInDate.getTime()) ? checkInDate.toISOString() : new Date().toISOString(), lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: deviceInfo });
-      if (att.error) throw att.error;
+      // V173: ถ้าวันนี้เคยลงชื่อไว้แล้ว ให้ UPDATE แถวเดิมแทนการ INSERT ซ้ำ
+      // เพื่อให้ข้อความ “วันนี้มีบันทึกลงชื่ออยู่เวรแล้ว” ไม่บล็อกการแก้ไขช่วงเวลา 24 ชม.
+      const existingAttendance = await sb.from('attendance_logs')
+        .select('id')
+        .eq('staff_id', staffId)
+        .eq('duty_date', dutyDate)
+        .limit(1);
+      if (existingAttendance.error) throw new Error(`ตรวจสอบบันทึกลงชื่อเดิมไม่สำเร็จ: ${existingAttendance.error.message}`);
 
-      const alreadyRequested = (state.otRequests || []).some(r => String(r.staff_id) === String(staffId) && normalizeDateKey(r.work_date) === dutyDate && String(r.reason || '').includes('ยืนยันอยู่เวร'));
-      if (!alreadyRequested) {
-        const chosenDuty = dutyCode || (duties[0]?.duty_code || '');
-        const autoHours = manualHours !== null ? manualHours : null;
-        const noteParts = [
-          isAdmin() ? `Admin บันทึกแทนโดย ${staffNick(currentStaffId())}` : 'สร้างจากส่วนที่ 1 ยืนยันอยู่เวร',
-          `เวลาเริ่ม ${startTime}`,
-          `วันที่สิ้นสุด ${endDate}`,
-          `เวลาสิ้นสุด ${endTime}`,
-          `ชั่วโมงคำนวณ ${calculatedHours} ชั่วโมง`,
-          chosenDuty ? `ประเภทเวร ${DUTY_LABEL[chosenDuty] || chosenDuty}` : '',
-          autoHours !== null ? `จำนวนเวลา ${autoHours} ชั่วโมง` : '',
-          proxyText,
-          adminNote
-        ].filter(Boolean);
-        const otBase = { staff_id: staffId, work_date: dutyDate, end_date: endDate, start_time: startTime, end_time: endTime, reason: isAdmin() ? 'ยืนยันอยู่เวรโดย Admin' : 'ยืนยันอยู่เวรตามตาราง', note: noteParts.join(' | '), status: 'รออนุมัติ', lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, device: deviceInfo };
-        let ot = await sb.from('ot_requests').insert(otBase);
-        if (ot.error && /end_date|column|schema/i.test(ot.error.message || '')) {
-          const fallback = { ...otBase, note: `${otBase.note} | วันที่สิ้นสุด ${endDate}` };
-          delete fallback.end_date;
-          ot = await sb.from('ot_requests').insert(fallback);
+      const existingAttendanceId = existingAttendance.data?.[0]?.id;
+      const attendanceWrite = existingAttendanceId
+        ? await sb.from('attendance_logs').update(attendancePayload).eq('id', existingAttendanceId)
+        : await sb.from('attendance_logs').insert(attendancePayload);
+      if (attendanceWrite.error) throw new Error(`บันทึกการลงชื่ออยู่เวรไม่สำเร็จ: ${attendanceWrite.error.message}`);
+
+      // V173: รายการ OT จากส่วนที่ 1 ต้องมีเสมอ ถ้ามีอยู่แล้วให้ UPDATE ไม่ใช่ข้ามแล้วขึ้นสำเร็จ
+      const existingOt = await sb.from('ot_requests')
+        .select('id,status')
+        .eq('staff_id', staffId)
+        .eq('work_date', dutyDate)
+        .ilike('reason', '%ยืนยันอยู่เวร%')
+        .limit(1);
+      if (existingOt.error) throw new Error(`ตรวจสอบรายการ OT เดิมไม่สำเร็จ: ${existingOt.error.message}`);
+
+      await writeOtRow(otBase, existingOt.data?.[0]?.id || null);
+
+      // V173: Re-fetch ทันทีหลังเขียนฐานข้อมูลสำเร็จ และตรวจว่ารายการ OT อ่านกลับมาได้จริง
+      await loadAllData();
+      const synced = (state.otRequests || []).some(r => String(r.staff_id) === String(staffId) && normalizeDateKey(r.work_date) === dutyDate && String(r.reason || '').includes('ยืนยันอยู่เวร'));
+      if (!synced) {
+        const verify = await sb.from('ot_requests')
+          .select('*')
+          .eq('staff_id', staffId)
+          .eq('work_date', dutyDate)
+          .ilike('reason', '%ยืนยันอยู่เวร%')
+          .limit(1);
+        if (verify.error) throw new Error(`บันทึกแล้ว แต่รีเฟรชรายการ OT ไม่สำเร็จ: ${verify.error.message}`);
+        if (verify.data?.length) {
+          state.otRequests = [verify.data[0], ...(state.otRequests || []).filter(r => String(r.id) !== String(verify.data[0].id))];
+        } else {
+          throw new Error('บันทึกแล้ว แต่ยังไม่พบรายการ OT ที่สร้าง/อัปเดต กรุณาตรวจสอบสิทธิ์ RLS หรือการเชื่อมต่อฐานข้อมูล');
         }
-        if (ot.error && /start_time|column|schema/i.test(ot.error.message || '')) {
-          const fallback = { ...otBase, note: `${otBase.note} | เวลาเริ่ม ${startTime} | วันที่สิ้นสุด ${endDate}` };
-          delete fallback.start_time;
-          delete fallback.end_date;
-          ot = await sb.from('ot_requests').insert(fallback);
-        }
-        if (ot.error) showToast(`ลงชื่อสำเร็จ แต่สร้างรายการ OT ไม่สำเร็จ: ${ot.error.message}`, { tone:'error' });
-      } else {
-        showToast('บันทึกลงชื่อแล้ว แต่มีรายการยืนยันอยู่เวรของวันนี้อยู่แล้ว จึงไม่สร้าง OT ซ้ำ');
       }
-      await loadAllData(); renderPage();
-      showToast(isAdmin() ? 'Admin บันทึกการอยู่เวรแทนเจ้าหน้าที่แล้ว' : (proxyText ? 'ยืนยันวันอยู่เวรแทนเจ้าของเวรเดิมแล้ว' : 'ยืนยันวันอยู่เวรและส่งรายการ OT แล้ว'));
+
+      renderPage();
+      showToast(existingAttendanceId ? 'อัปเดตเวลายืนยันอยู่เวรและรายการ OT แล้ว' : (proxyText ? 'ยืนยันวันอยู่เวรแทนเจ้าของเวรเดิมและส่งรายการ OT แล้ว' : 'ยืนยันวันอยู่เวรและส่งรายการ OT แล้ว'));
     } catch (err) {
+      console.error('V173 saveAttendance failed', err);
       showToast(err.message || 'บันทึกการอยู่เวรไม่สำเร็จ', { tone:'error' });
     } finally { setBusy(false); }
   }
+
   window.saveAttendanceV163 = saveAttendanceV163;
 
   document.addEventListener('submit', function(e){
