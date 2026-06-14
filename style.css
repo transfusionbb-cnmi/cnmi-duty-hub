@@ -99,6 +99,8 @@ tr:last-child td { border-bottom: 0; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .tiny-btn { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 7px 10px; font-weight: 800; color: var(--primary-dark); }
 .tiny-btn.danger { color: var(--danger); border-color: #ffd3dc; }
+.tiny-btn.warn { color: #9b6a00; border-color: #ffd27b; background: #fffaf0; }
+.tiny-btn.success { color: #0f7a3b; border-color: #b8e7c6; background: #f2fff6; }
 .calendar-shell { display: grid; gap: 14px; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(110px,1fr)); gap: 8px; }
 .calendar-dayname { color: var(--muted); font-weight: 900; text-align: center; padding: 8px; }

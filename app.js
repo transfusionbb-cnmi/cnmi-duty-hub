@@ -256,7 +256,7 @@ function staffPill(staffId, opts={}) {
 function staffType(id) { return state.staff.find(x => x.id === id)?.staff_type || ''; }
 function getMonthRange(key) { const [y,m] = key.split('-').map(Number); return { start: `${y}-${pad(m)}-01`, end: toDateInput(new Date(y, m, 0)), y, m }; }
 function dateInRange(date, start, end) { return date >= start && date <= end; }
-function overlapsDate(row, date) { return row.start_date <= date && row.end_date >= date && row.status !== 'cancelled'; }
+function overlapsDate(row, date) { return row.start_date <= date && row.end_date >= date && (typeof isLeaveEffective !== 'function' || isLeaveEffective(row)); }
 function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 function debounce(fn, wait=250) { let t; return (...args) => { clearTimeout(t); t=setTimeout(()=>fn(...args), wait); }; }
 
@@ -1419,12 +1419,29 @@ function holidayName(date) {
   if (!row || typeof row === 'string') return row || 'วันหยุดราชการ';
   return String(row.title || row.name || row.holiday_name || 'วันหยุดราชการ').split(':::')[0].trim();
 }
+function leaveStatusText(row) {
+  return String(row?.status || row?.approval_status || 'active').trim();
+}
+function isLeaveCancellationStatus(row) {
+  const st = leaveStatusText(row).toLowerCase();
+  return row?.cancellation_requested === true || st === 'รออนุมัติยกเลิก' || st === 'cancel_requested' || st === 'pending_cancel' || st === 'pending_cancellation';
+}
+function isLeaveFinalInactive(row) {
+  const stRaw = leaveStatusText(row);
+  const st = stRaw.toLowerCase();
+  if (isLeaveCancellationStatus(row)) return false;
+  if (['cancelled','canceled','deleted','inactive','void','rejected'].includes(st)) return true;
+  if (stRaw === 'ยกเลิกแล้ว' || stRaw === 'ลบทิ้ง' || stRaw === 'ไม่อนุมัติ') return true;
+  return false;
+}
+function isLeaveEffective(row) {
+  return !isLeaveFinalInactive(row);
+}
 function activeLeaveRecordOn(staffId, date) {
   const key = normalizeDateKey(date);
   return state.leaves.find(l => {
     if (String(l?.staff_id) !== String(staffId)) return false;
-    const status = String(l?.status || l?.approval_status || 'active').toLowerCase();
-    if (/(cancel|reject|delete|ยกเลิก|ไม่อนุมัติ)/i.test(status)) return false;
+    if (!isLeaveEffective(l)) return false;
     return overlapsDate(l, key);
   }) || null;
 }
@@ -1802,14 +1819,14 @@ function renderDashboard() {
   const d = todayStr();
   const thisYear = String(new Date().getFullYear());
   const thisMonth = monthKey(new Date());
-  const leavesToday = state.leaves.filter(x => overlapsDate(x, d) && x.type !== 'ไม่รับเวร');
-  const noDutyToday = state.leaves.filter(x => overlapsDate(x, d) && x.type === 'ไม่รับเวร');
+  const leavesToday = state.leaves.filter(x => isLeaveEffective(x) && overlapsDate(x, d) && x.type !== 'ไม่รับเวร');
+  const noDutyToday = state.leaves.filter(x => isLeaveEffective(x) && overlapsDate(x, d) && x.type === 'ไม่รับเวร');
   const actToday = state.activities.filter(x => dateInRange(d, x.start_date, x.end_date));
   const trainings = actToday.filter(x => x.event_type === 'อบรม');
   const meetings = actToday.filter(x => x.event_type === 'ประชุม');
   const outings = actToday.filter(x => x.event_type === 'ออกหน่วย');
   const todayDuties = sortDashboardDuties(state.rosterAssignments.filter(x => x.duty_date === d), d);
-  const leaveThisYear = state.leaves.filter(x => String(x.start_date).startsWith(thisYear) && x.type !== 'ไม่รับเวร' && x.status !== 'cancelled');
+  const leaveThisYear = state.leaves.filter(x => String(x.start_date).startsWith(thisYear) && x.type !== 'ไม่รับเวร' && isLeaveEffective(x));
   const monthOt = state.otRequests.filter(x => x.work_date?.startsWith(thisMonth) && x.status === 'อนุมัติ');
   const otHours = monthOt.reduce((sum, r) => sum + calcOtHours(r), 0);
   const holidayDutyCount = state.rosterAssignments.filter(x => x.duty_date?.startsWith(thisMonth) && isWeekend(x.duty_date) && x.staff_id).length;
@@ -1903,7 +1920,7 @@ function renderCalendarModalRow(e) {
 }
 function collectCalendarEvents() {
   const events = [];
-  state.leaves.filter(x => x.status !== 'cancelled').forEach(l => {
+  state.leaves.filter(isLeaveEffective).forEach(l => {
     const days = daysBetween(l.start_date, l.end_date);
     const hrChecked = isLeaveHrChecked(l.id);
     days.forEach(date => {
@@ -2022,28 +2039,32 @@ function renderLeaveTable(rows) {
   return table + cards;
 }
 function isLeaveCancellationRequested(row) {
-  const st = String(row?.status || '').trim();
-  return row?.cancellation_requested === true || st === 'รออนุมัติยกเลิก' || st === 'cancel_requested' || st === 'pending_cancel';
+  return isLeaveCancellationStatus(row);
 }
 function leaveStatusBadge(row) {
   if (isLeaveCancellationRequested(row)) return badge('รออนุมัติยกเลิก', 'orange');
-  return badge(row?.status || 'active', row?.status === 'cancelled' ? 'red' : 'green');
+  return badge(row?.status || 'active', isLeaveFinalInactive(row) ? 'red' : 'green');
 }
 function leaveCancellationBadge(row) {
   return isLeaveCancellationRequested(row) ? '<br><span class="badge orange">พนักงานขอยกเลิก</span>' : '';
 }
 function renderLeaveActions(row) {
   if (isAdmin()) {
-    return `${canEditOwn(row) ? `<button class="tiny-btn" data-edit-leave="${row.id}">แก้ไข</button>` : ''}<button class="tiny-btn danger" data-delete-leave="${row.id}">ลบ</button>`;
+    const editBtn = canEditOwn(row) ? `<button class="tiny-btn" data-edit-leave="${row.id}">แก้ไข</button>` : '';
+    if (isLeaveCancellationRequested(row)) {
+      return `${editBtn}<button class="tiny-btn success" data-approve-cancel-leave="${row.id}">อนุมัติยกเลิก</button><button class="tiny-btn warn" data-reject-cancel-leave="${row.id}">ไม่อนุมัติยกเลิก</button><button class="tiny-btn danger" data-delete-leave="${row.id}" title="ลบทิ้งจริง ไม่ใช่วิธีอนุมัติยกเลิก">ลบ</button>`;
+    }
+    return `${editBtn}<button class="tiny-btn danger" data-delete-leave="${row.id}" title="ลบทิ้งจริง ไม่ใช่วิธีอนุมัติยกเลิก">ลบ</button>`;
   }
-  if (row?.staff_id !== currentStaffId() || row?.status === 'cancelled') return '<span class="muted">แก้ไม่ได้</span>';
+  if (row?.staff_id !== currentStaffId() || isLeaveFinalInactive(row)) return '<span class="muted">แก้ไม่ได้</span>';
   if (isLeaveCancellationRequested(row)) return '<span class="badge orange">ส่งคำขอยกเลิกแล้ว</span>';
   const editBtn = canEditOwn(row) ? `<button class="tiny-btn" data-edit-leave="${row.id}">แก้ไข</button>` : '';
-  return `${editBtn}<button class="tiny-btn warn" data-request-cancel-leave="${row.id}">ส่งคำขอยกเลิกวันลา</button>`;
+  const label = row?.type === 'ไม่รับเวร' ? 'ส่งคำขอยกเลิกไม่รับเวร' : 'ส่งคำขอยกเลิกวันลา';
+  return `${editBtn}<button class="tiny-btn warn" data-request-cancel-leave="${row.id}">${label}</button>`;
 }
 function canEditOwn(row) {
   if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return true;
-  return row.staff_id === currentStaffId() && row.status !== 'cancelled' && !isBackdatedForStaff(row.start_date) && (row.type !== 'ไม่รับเวร' || !isNoDutyLockedForDate(row.start_date));
+  return row.staff_id === currentStaffId() && !isLeaveFinalInactive(row) && !isLeaveCancellationRequested(row) && !isBackdatedForStaff(row.start_date) && (row.type !== 'ไม่รับเวร' || !isNoDutyLockedForDate(row.start_date));
 }
 function isNoDutyLockedForDate(date) {
   if (isAdmin() && CFG.ADMIN_BYPASS_LEAVE_CLOSE_RULE !== false) return false;
@@ -2163,7 +2184,7 @@ function renderHrPage() {
   const staffFilter = state.hrFilterStaff || '';
   const monthFilter = state.hrFilterMonth || state.monthKey;
   const leaveRows = state.leaves
-    .filter(x => x.type !== 'ไม่รับเวร' && x.status !== 'cancelled' && !isLeaveHrChecked(x.id))
+    .filter(x => x.type !== 'ไม่รับเวร' && isLeaveEffective(x) && !isLeaveHrChecked(x.id))
     .filter(x => !staffFilter || x.staff_id === staffFilter)
     .filter(x => !monthFilter || String(x.start_date || '').startsWith(monthFilter) || String(x.end_date || '').startsWith(monthFilter));
   return `<div class="card">
@@ -3307,6 +3328,8 @@ async function handleClick(e) {
   if (t.hasAttribute('data-cancel-edit-leave')) { state.editingLeaveId = null; renderPage(); return; }
   if (t.dataset.cancelLeave) { await cancelLeave(t.dataset.cancelLeave); return; }
   if (t.dataset.requestCancelLeave) { await requestCancelLeave(t.dataset.requestCancelLeave); return; }
+  if (t.dataset.approveCancelLeave) { await approveCancelLeave(t.dataset.approveCancelLeave); return; }
+  if (t.dataset.rejectCancelLeave) { await rejectCancelLeave(t.dataset.rejectCancelLeave); return; }
   if (t.dataset.deleteLeave) { await deleteLeave(t.dataset.deleteLeave); return; }
   if (t.dataset.editActivity) { state.editingActivityId = t.dataset.editActivity; renderPage(); return; }
   if (t.hasAttribute('data-cancel-edit-activity')) { state.editingActivityId = null; renderPage(); return; }
@@ -3505,16 +3528,60 @@ async function cancelLeave(id) {
 async function requestCancelLeave(id) {
   const row = state.leaves.find(x => String(x.id) === String(id));
   if (!row || String(row.staff_id) !== String(currentStaffId())) return showToast('ส่งคำขอยกเลิกได้เฉพาะรายการของตัวเอง');
-  if (row.status === 'cancelled') return showToast('รายการนี้ถูกยกเลิกแล้ว');
+  if (isLeaveFinalInactive(row)) return showToast('รายการนี้ถูกยกเลิกแล้ว');
   if (isLeaveCancellationRequested(row)) return showToast('ส่งคำขอยกเลิกไว้แล้ว รอ Admin พิจารณา');
-  if (!(await confirmDialog('ระบบจะไม่ลบรายการลา แต่จะส่งคำขอให้ Admin พิจารณายกเลิก ต้องการดำเนินการใช่ไหม?', 'ส่งคำขอยกเลิกวันลา'))) return;
+  const noun = row.type === 'ไม่รับเวร' ? 'ไม่รับเวร' : 'วันลา';
+  if (!(await confirmDialog(`ระบบจะไม่ลบรายการ${noun} แต่จะส่งคำขอให้ Admin พิจารณายกเลิก ต้องการดำเนินการใช่ไหม?`, `ส่งคำขอยกเลิก${noun}`))) return;
   const { error } = await sb.from('leave_requests').update({ status:'รออนุมัติยกเลิก', updated_by: currentStaffId() }).eq('id', id).eq('staff_id', currentStaffId());
   if (error) return showToast(friendlyDbError(error));
-  await loadAllData(); renderPage(); showToast('ส่งคำขอยกเลิกวันลาแล้ว');
+  await loadAllData(); renderPage(); showToast(row.type === 'ไม่รับเวร' ? 'ส่งคำขอยกเลิกไม่รับเวรแล้ว' : 'ส่งคำขอยกเลิกวันลาแล้ว');
+}
+function appendLeaveAdminReason(row, action, reason) {
+  const previous = String(row?.admin_record_reason || '').trim();
+  const by = staffNick(currentStaffId()) || currentStaffId() || 'Admin';
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const text = `${action}: ${String(reason || '-').trim()} (โดย ${by} ${stamp})`;
+  return [previous, text].filter(Boolean).join(' | ');
+}
+async function approveCancelLeave(id) {
+  if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้นที่อนุมัติการยกเลิกได้');
+  const row = state.leaves.find(x => String(x.id) === String(id));
+  if (!row) return showToast('ไม่พบรายการนี้');
+  if (!isLeaveCancellationRequested(row)) return showToast('รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติยกเลิก');
+  const noun = row.type === 'ไม่รับเวร' ? 'รายการไม่รับเวร' : 'รายการลา';
+  if (!(await confirmDialog(`ยืนยันอนุมัติยกเลิก${noun}นี้? ระบบจะเปลี่ยนสถานะเป็น cancelled และเก็บประวัติไว้`, 'อนุมัติการยกเลิก'))) return;
+  const reason = await promptDialog('เหตุผล/หมายเหตุสำหรับการอนุมัติยกเลิก', 'บันทึกเหตุผล', 'Admin อนุมัติคำขอยกเลิก');
+  if (reason === null) return;
+  const patch = {
+    status: 'cancelled',
+    updated_by: currentStaffId(),
+    admin_record_reason: appendLeaveAdminReason(row, 'อนุมัติยกเลิก', reason)
+  };
+  const { error } = await sb.from('leave_requests').update(patch).eq('id', id);
+  if (error) return showToast(friendlyDbError(error));
+  await loadAllData(); renderPage(); showToast('อนุมัติการยกเลิกแล้ว');
+}
+async function rejectCancelLeave(id) {
+  if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้นที่ไม่อนุมัติการยกเลิกได้');
+  const row = state.leaves.find(x => String(x.id) === String(id));
+  if (!row) return showToast('ไม่พบรายการนี้');
+  if (!isLeaveCancellationRequested(row)) return showToast('รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติยกเลิก');
+  const noun = row.type === 'ไม่รับเวร' ? 'รายการไม่รับเวร' : 'รายการลา';
+  if (!(await confirmDialog(`ยืนยันไม่อนุมัติการยกเลิก${noun}นี้? ระบบจะเปลี่ยนสถานะกลับเป็น active`, 'ไม่อนุมัติการยกเลิก'))) return;
+  const reason = await promptDialog('เหตุผล/หมายเหตุสำหรับการไม่อนุมัติยกเลิก', 'บันทึกเหตุผล', 'Admin ไม่อนุมัติคำขอยกเลิก');
+  if (reason === null) return;
+  const patch = {
+    status: 'active',
+    updated_by: currentStaffId(),
+    admin_record_reason: appendLeaveAdminReason(row, 'ไม่อนุมัติยกเลิก', reason)
+  };
+  const { error } = await sb.from('leave_requests').update(patch).eq('id', id);
+  if (error) return showToast(friendlyDbError(error));
+  await loadAllData(); renderPage(); showToast('ไม่อนุมัติการยกเลิก รายการกลับมา active แล้ว');
 }
 async function deleteLeave(id) {
   if (!isAdmin()) return showToast('เฉพาะ Admin เท่านั้นที่ลบทิ้งได้');
-  if (!(await confirmDialog('ลบทิ้งจะหายจากรายการใช้งานทันที แต่ Audit Log ยังเก็บประวัติไว้ ต้องการลบทิ้งใช่ไหม?', 'ยืนยันลบทิ้ง'))) return;
+  if (!(await confirmDialog('ลบทิ้งคือการลบ record ออกจากฐานข้อมูล ไม่ใช่การอนุมัติยกเลิกตามขั้นตอน ต้องการลบทิ้งจริงใช่ไหม?', 'ยืนยันลบทิ้งจริง'))) return;
   const { error } = await sb.from('leave_requests').delete().eq('id', id);
   if (error) return showToast(friendlyDbError(error));
   state.editingLeaveId = null;
@@ -3667,7 +3734,7 @@ function rebalanceRosterAfterManualChange(changedSlotId) {
     if (slot.is_locked || slot.staff_id) return;
     const candidates = state.staff
       .filter(s => isRosterEnabled(s) && supportsRequiredRole(s, slot.required_role))
-      .filter(s => !state.leaves.some(l => l.staff_id === s.id && overlapsDate(l, slot.duty_date)))
+      .filter(s => !activeLeaveRecordOn(s.id, slot.duty_date))
       .filter(s => !hasSameDayDuty(s.id, slot.duty_date, assignments, slot))
       .filter(s => !hasAdjacentDuty(s.id, slot.duty_date, assignments, slot));
     candidates.sort((a,b) => {
@@ -3694,7 +3761,7 @@ function autoAssignRoster() {
   assignments.forEach(slot => {
     if (slot.is_locked || slot.staff_id) return;
     const wk = weekKeyOf(slot.duty_date);
-    const baseCandidates = state.staff.filter(s => isRosterEnabled(s) && supportsRequiredRole(s, slot.required_role) && !state.leaves.some(l => l.staff_id === s.id && overlapsDate(l, slot.duty_date)) && !hasSameDayDuty(s.id, slot.duty_date, assignments, slot));
+    const baseCandidates = state.staff.filter(s => isRosterEnabled(s) && supportsRequiredRole(s, slot.required_role) && !activeLeaveRecordOn(s.id, slot.duty_date) && !hasSameDayDuty(s.id, slot.duty_date, assignments, slot));
     const candidates = baseCandidates.filter(s => !hasAdjacentDuty(s.id, slot.duty_date, assignments, slot));
     if (!candidates.length && baseCandidates.length) blockedByConsecutive++;
     candidates.sort((a,b) => {
@@ -4472,7 +4539,7 @@ function renderProfileRequestsPage() {
 }
 
 function noDutyLimitCounts(staffId, monthKey, excludeId='') {
-  const rows = (state.leaves || []).filter(l => l.type === 'ไม่รับเวร' && l.status !== 'cancelled' && String(l.staff_id) === String(staffId) && String(l.id || '') !== String(excludeId || ''));
+  const rows = (state.leaves || []).filter(l => l.type === 'ไม่รับเวร' && isLeaveEffective(l) && String(l.staff_id) === String(staffId) && String(l.id || '') !== String(excludeId || ''));
   let weekend = 0, weekday = 0;
   rows.forEach(l => daysBetween(l.start_date, l.end_date).forEach(date => {
     if (!String(date).startsWith(monthKey)) return;
@@ -5061,7 +5128,7 @@ function bindGlobalEvents() {
   function daysInRange(start, end) { return datesBetween(start, end); }
   function noDutyCountsV57(staffId, mk, excludeId='') {
     let weekend = 0, weekday = 0;
-    (state.leaves || []).filter(l => l.type === 'ไม่รับเวร' && low(l.status || 'active') !== 'cancelled' && idEq(l.staff_id, staffId) && !idEq(l.id, excludeId)).forEach(l => {
+    (state.leaves || []).filter(l => l.type === 'ไม่รับเวร' && isLeaveEffective(l) && idEq(l.staff_id, staffId) && !idEq(l.id, excludeId)).forEach(l => {
       daysInRange(l.start_date, l.end_date).forEach(d => {
         if (String(d).slice(0,7) !== mk) return;
         if (isWeekend(d)) weekend += 1; else weekday += 1;
@@ -6496,7 +6563,7 @@ function bindGlobalEvents() {
       const staffId = String(l?.staff_id || '');
       if (!staffId) return;
       const status = String(l?.status || l?.approval_status || 'active').toLowerCase();
-      if (/(cancel|reject|delete|ยกเลิก|ไม่อนุมัติ)/i.test(status)) return;
+      if (typeof isLeaveEffective === 'function' ? !isLeaveEffective(l) : /(cancelled|canceled|reject|delete|ไม่อนุมัติ)/i.test(status)) return;
       (dates || []).forEach(d => {
         if (dateSet.size && !dateSet.has(d)) return;
         try { if (!overlapsDate(l, d)) return; } catch (_) { return; }
@@ -6713,7 +6780,7 @@ function bindGlobalEvents() {
       const sid = String(l?.staff_id || '');
       if (!ids.has(sid)) return;
       const status = String(l?.status || l?.approval_status || 'active').toLowerCase();
-      if (/(cancel|reject|delete|ยกเลิก|ไม่อนุมัติ)/i.test(status)) return;
+      if (typeof isLeaveEffective === 'function' ? !isLeaveEffective(l) : /(cancelled|canceled|reject|delete|ไม่อนุมัติ)/i.test(status)) return;
       (dates || []).forEach(d => {
         try { if (overlapsDate(l, d) && !out.has(`${sid}|${d}`)) out.set(`${sid}|${d}`, l); } catch(_) {}
       });
@@ -9229,7 +9296,7 @@ function bindGlobalEvents() {
   }
   function isActiveLeaveStatus180(l){
     const st = String(l?.status || '').toLowerCase();
-    if (/reject|cancel|ไม่อนุมัติ|ยกเลิก/.test(st)) return false;
+    if (typeof isLeaveEffective === 'function' ? !isLeaveEffective(l) : /reject|cancelled|canceled|ไม่อนุมัติ/.test(st)) return false;
     return true;
   }
   function staffHasLeaveOnDate180(staffId, date){
@@ -9713,7 +9780,7 @@ function bindGlobalEvents() {
   }
   function isActiveLeaveStatus181(l){
     const st = String(l?.status || '').toLowerCase();
-    return !/reject|cancel|ไม่อนุมัติ|ยกเลิก/.test(st);
+    return (typeof isLeaveEffective === 'function') ? isLeaveEffective(l) : !/reject|cancelled|canceled|ไม่อนุมัติ/.test(st);
   }
   function staffHasLeaveOnDate181(staffId, date){
     const d = normalize181(date);
@@ -10380,6 +10447,7 @@ function bindGlobalEvents() {
     (state.leaves || []).forEach(l => {
       const sid = String(l?.staff_id || '');
       if (!sid) return;
+      if (typeof isLeaveEffective === 'function' && !isLeaveEffective(l)) return;
       (dates || []).forEach(d => { try { if (overlapsDate(l, d) && !out.has(`${sid}|${d}`)) out.set(`${sid}|${d}`, l); } catch (_) {} });
     });
     return out;
@@ -10992,7 +11060,7 @@ function bindGlobalEvents() {
       const type = String(l.type || l.leave_type || '').trim();
       if (!type || type === 'ไม่รับเวร') return false;
       const st = String(l.status || '').toLowerCase();
-      if (/reject|cancel|ไม่อนุมัติ|ยกเลิก/.test(st)) return false;
+      if (typeof isLeaveEffective === 'function' ? !isLeaveEffective(l) : /reject|cancelled|canceled|ไม่อนุมัติ/.test(st)) return false;
       const s = normalizeDate190(l.start_date || l.leave_date || l.date);
       const e = normalizeDate190(l.end_date || l.start_date || l.leave_date || l.date);
       return s && e && d >= s && d <= e;
@@ -11625,4 +11693,21 @@ function bindGlobalEvents() {
     return `<div class="calendar-grid calendar-card-grid ${mobile ? 'calendar-mobile-seven' : ''}">${['อา','จ','อ','พ','พฤ','ศ','ส'].map(x => `<div class="calendar-dayname">${x}</div>`).join('')}${cells.join('')}</div>`;
   };
   console.info(`${VERSION_V201} loaded`);
+})();
+
+
+/* V202 Leave/No-duty cancellation approval workflow */
+(function(){
+  const VERSION_V202 = 'V202_LEAVE_CANCEL_APPROVAL';
+  try {
+    window.leaveStatusText = leaveStatusText;
+    window.isLeaveCancellationStatus = isLeaveCancellationStatus;
+    window.isLeaveFinalInactive = isLeaveFinalInactive;
+    window.isLeaveEffective = isLeaveEffective;
+    window.approveCancelLeave = approveCancelLeave;
+    window.rejectCancelLeave = rejectCancelLeave;
+    window.renderLeaveActions = renderLeaveActions;
+    window.activeLeaveRecordOn = activeLeaveRecordOn;
+  } catch (_) {}
+  console.info(`[${VERSION_V202}] leave/no-duty cancellation approve/reject buttons loaded`);
 })();
