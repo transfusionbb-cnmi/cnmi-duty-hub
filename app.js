@@ -11580,3 +11580,49 @@ function bindGlobalEvents() {
 
   console.info(`${VERSION_V191} loaded`);
 })();
+
+/* =========================================================
+   V201 Mobile UI patch
+   - Calendar กลางบนมือถือแสดงเป็น Grid 7 วันเต็มจอทันที ไม่เป็น list/column และไม่ต้องเลื่อนแนวนอน
+   - จำกัดจำนวนรายการใน cell มือถือให้กระชับ พร้อม +จำนวนรายการที่เหลือ และยังแตะ cell เพื่อดู popup รายละเอียดได้เหมือนเดิม
+   ========================================================= */
+(function(){
+  const VERSION_V201 = 'V201_MOBILE_CALENDAR_BALANCE_SCROLL';
+  const DUTY_ORDER_V201 = ['ชบด1','ชบด2','ชบด3','ช4','ช3A','ช3B','ช9-เคิก','ช9-MT','ช9'];
+  function dutySortV201(e) {
+    if (!e || e.type !== 'duty') return 999;
+    const code = String(e.raw?.duty_code || '').trim();
+    const idx = DUTY_ORDER_V201.findIndex(x => code === x || code.startsWith(x));
+    return idx < 0 ? 998 : idx;
+  }
+  function calendarSortV201(a, b) {
+    const da = dutySortV201(a);
+    const db = dutySortV201(b);
+    if (da !== db) return da - db;
+    const typeOrder = { duty: 1, holiday: 2, training: 3, meeting: 4, outing: 5, standard: 6, code: 7, activity: 8 };
+    return (typeOrder[a?.type] || 50) - (typeOrder[b?.type] || 50);
+  }
+  window.renderCalendarMonth = renderCalendarMonth = function renderCalendarMonthV201() {
+    const events = collectCalendarEvents();
+    const d = new Date(state.calendarDate.getFullYear(), state.calendarDate.getMonth(), 1);
+    const first = new Date(d);
+    first.setDate(1 - first.getDay());
+    const mobile = typeof window !== 'undefined' && window.innerWidth <= 820;
+    const visibleLimit = mobile ? 3 : 5;
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const cur = new Date(first);
+      cur.setDate(first.getDate() + i);
+      const ds = toDateInput(cur);
+      const dayEvents = events.filter(e => e.date === ds).sort(calendarSortV201);
+      const shown = dayEvents.slice(0, visibleLimit);
+      cells.push(`<button type="button" class="calendar-cell calendar-card-cell ${cur.getMonth() !== state.calendarDate.getMonth() ? 'other-month' : ''} ${ds === todayStr() ? 'today' : ''}" data-day-detail="${ds}">
+        <div class="day-num"><span>${cur.getDate()}</span><span class="tiny-btn fake-btn">ดู</span></div>
+        ${shown.map(e => `<span class="event-pill event-${e.type}" style="background:${calendarEventColor(e)};color:${textColorFor(calendarEventColor(e))}">${escapeHtml(e.title)}</span>`).join('')}
+        ${dayEvents.length > visibleLimit ? `<span class="hint">+${dayEvents.length - visibleLimit} รายการ</span>` : ''}
+      </button>`);
+    }
+    return `<div class="calendar-grid calendar-card-grid ${mobile ? 'calendar-mobile-seven' : ''}">${['อา','จ','อ','พ','พฤ','ศ','ส'].map(x => `<div class="calendar-dayname">${x}</div>`).join('')}${cells.join('')}</div>`;
+  };
+  console.info(`${VERSION_V201} loaded`);
+})();
